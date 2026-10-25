@@ -383,7 +383,11 @@ button:disabled{cursor:not-allowed}
 .boot > *{max-width:260px}
 .boot-card{display:flex;flex-direction:column;gap:8px;align-items:center;padding:18px 20px;border-radius:20px}
 .boot-card b{font-size:15px}
-.boot-card span{font-size:12.5px;color:rgba(244,246,243,.75);line-height:1.4}
+.boot-card span{font-size:12.5px;color:rgba(244,246,243,.75);line-height:1.4;max-width:280px}
+.boot-card .boot-logo{display:grid;place-items:center;width:52px;height:52px;border-radius:16px;background:rgba(52,226,122,.12);color:#fff;margin-bottom:4px}
+.boot-card .boot-logo .gem{width:26px;height:26px}
+.tg-open{margin-top:6px;display:inline-flex;align-items:center;justify-content:center;height:44px;padding:0 22px;border-radius:14px;background:#34e27a;color:#04140a;font-weight:700;font-size:14.5px;text-decoration:none}
+.tg-open:active{transform:scale(.97)}
 .faucet{position:fixed;left:50%;top:calc(70px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:30;display:flex;flex-direction:column;align-items:center;gap:2px;padding:12px 22px;border-radius:20px;pointer-events:none;opacity:0}
 .faucet.in{animation:fcIn .45s cubic-bezier(.3,1.5,.5,1) forwards}
 .faucet.out{animation:fcOut .35s ease-in forwards}
@@ -449,7 +453,7 @@ button:disabled{cursor:not-allowed}
       <div class="mod-badge glass smoke" id="modBadge" hidden></div>
       <div class="arena-chip glass smoke" id="arenaChip">Подключаемся…</div>
       <div class="result" id="result" hidden></div>
-      <div class="boot" id="bootBox"><div class="boot-card glass smoke"><b>Подключаемся к игре…</b><span>Создаём гостевой аккаунт и загружаем текущий раунд.</span></div></div>
+      <div class="boot" id="bootBox"><div class="boot-card glass smoke"><b>Подключаемся к игре…</b><span>Входим через Telegram и загружаем текущий раунд.</span></div></div>
     </div>
   </section>
 
@@ -531,7 +535,7 @@ button:disabled{cursor:not-allowed}
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-<script>if (/tgWebApp/.test(location.hash + location.search)) document.write('<script src="https://telegram.org/js/telegram-web-app.js"><\/script>');</script>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="core.js"></script>
 <script>
 'use strict';
@@ -1978,40 +1982,61 @@ function frame(ts){
   requestAnimationFrame(frame);
 }
 
-/* ---------- start: guest account → profile → live data ---------- */
-const ADJ = ['Swift','Lucky','Silent','Brave','Neon','Cosmic','Frosty','Golden','Shadow','Rapid','Mighty','Clever','Velvet','Iron','Wild','Sly'];
-const NOUN = ['Fox','Owl','Tiger','Panda','Raven','Wolf','Otter','Falcon','Lynx','Koala','Shark','Comet','Moth','Crane','Bison','Gecko'];
-function bootError(msg){
+/* ---------- start: Telegram sign-in → live data ---------- */
+const BOT = 'cutline_game';
+const TG_ERRORS = {
+  tg_required: 'Игра открывается только из Telegram.',
+  tg_bad_sign: 'Telegram не подтвердил вход. Закройте игру и откройте её заново из бота.',
+  tg_expired: 'Сессия Telegram устарела. Закройте игру и откройте её заново из бота.',
+  tg_no_user: 'Telegram не передал данные игрока. Откройте игру через кнопку в боте.',
+  no_bot_token: 'Сервер ещё не настроен: нет токена бота.'
+};
+function bootCard(html){
   const b = $('#bootBox'); b.hidden = false;
-  b.innerHTML = `<b>Не удалось подключиться</b><span>${esc(msg)}</span><button class="verify-btn" id="bootRetry">Попробовать снова</button>`;
+  b.innerHTML = `<div class="boot-card glass smoke">${html}</div>`;
+}
+function bootError(msg){
+  bootCard(`<b>Не удалось подключиться</b><span>${esc(msg)}</span><button class="verify-btn" id="bootRetry">Попробовать снова</button>`);
   $('#bootRetry').addEventListener('click', () => location.reload());
 }
+function openInTelegram(){
+  bootCard(`<span class="boot-logo">${GEM}</span><b>CUTLINE живёт в Telegram</b>
+    <span>Играть можно только через нашего бота — так у каждого игрока один аккаунт и честный баланс.</span>
+    <a class="tg-open" href="https://t.me/${BOT}" target="_blank" rel="noopener">Открыть @${BOT}</a>`);
+  setChip('Откройте игру в Telegram');
+}
+function launchData(tg){
+  if (tg && tg.initData) return tg.initData;
+  try { return new URLSearchParams(location.hash.slice(1)).get('tgWebAppData') || ''; } catch(e){ return ''; }
+}
+async function callGame(body){
+  const {data, error} = await sb.functions.invoke('game', {body});
+  if (error){
+    let msg = error.message;
+    try { const j = await error.context.json(); if (j && j.error) msg = j.error; } catch(e){}
+    throw new Error(TG_ERRORS[msg] || msg);
+  }
+  if (data && data.error) throw new Error(TG_ERRORS[data.error] || data.error);
+  return data;
+}
 async function boot(){
+  const tg = window.Telegram && window.Telegram.WebApp;
+  const initData = launchData(tg);
+  if (!initData){ openInTelegram(); return; }
   try {
-    const tg = window.Telegram && window.Telegram.WebApp;
-    if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user){ try { tg.ready(); tg.expand(); } catch(e){} }
-    let {data: {session}} = await sb.auth.getSession();
-    if (!session){
-      let creds = store.get('cutline.guest', null);
-      if (!creds){
-        const {data, error} = await sb.functions.invoke('game', {body: {action: 'guest'}});
-        if (error || !data || !data.email) throw new Error('сервер не создал гостевой аккаунт');
-        creds = data; store.set('cutline.guest', creds);
-      }
-      const {data: si, error: e2} = await sb.auth.signInWithPassword({email: creds.email, password: creds.password});
-      if (e2){ store.set('cutline.guest', null); throw e2; }
-      session = si.session;
-    }
-    myId = session.user.id;
-    // name and avatar: from Telegram when opened there, otherwise a generated nickname and picture
-    const tu = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
-    let nick = store.get('cutline.nick', null);
-    if (!nick){ nick = `${ADJ[Math.floor(Math.random() * ADJ.length)]} ${NOUN[Math.floor(Math.random() * NOUN.length)]} ${10 + Math.floor(Math.random() * 90)}`; store.set('cutline.nick', nick); }
-    myName = tu ? [tu.first_name, tu.last_name].filter(Boolean).join(' ').slice(0, 24) || nick : nick;
-    myAvatar = (tu && tu.photo_url) || diceAvatar(myId);
-    const {data: w, error: e3} = await sb.rpc('ensure_profile', {p_name: myName, p_avatar: myAvatar});
-    if (e3) throw e3;
-    wallet = {balance: Number(w.balance), last_faucet_round: w.last_faucet_round};
+    try {
+      tg.ready(); tg.expand();
+      if (tg.setHeaderColor) tg.setHeaderColor('#060706');
+      if (tg.setBackgroundColor) tg.setBackgroundColor('#060706');
+      if (tg.disableVerticalSwipes) tg.disableVerticalSwipes();
+    } catch(e){}
+    // the server checks Telegram's signature and answers with this player's session, name and picture
+    const me0 = await callGame({action: 'tg', initData});
+    const {data: si, error: e1} = await sb.auth.setSession({access_token: me0.access_token, refresh_token: me0.refresh_token});
+    if (e1) throw e1;
+    myId = si.session.user.id;
+    myName = me0.name; myAvatar = me0.avatar_url || diceAvatar(myId);
+    wallet = {balance: Number(me0.balance), last_faucet_round: me0.last_faucet_round};
     profiles.set(myId, {name: myName, avatar_url: myAvatar, is_bot: false});
     await syncClock();
     const {data: cfg} = await sb.from('app_config').select('value').eq('key', 'timing').maybeSingle();
