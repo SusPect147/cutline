@@ -130,6 +130,10 @@ button:disabled{cursor:not-allowed}
 .action-bar,.result-card{position:relative}
 /* over the bright field the glass gets a smoky tint so white text stays readable */
 .glass.smoke{background:linear-gradient(160deg,rgba(28,33,29,.62),rgba(8,10,8,.42) 50%,rgba(20,24,21,.55))}
+/* the field redraws every frame: a backdrop blur on top of it would be recomputed every frame too (very heavy on phones) */
+.arena .glass{-webkit-backdrop-filter:none;backdrop-filter:none}
+.arena .glass.smoke{background:linear-gradient(160deg,rgba(24,28,25,.9),rgba(9,11,9,.84) 50%,rgba(18,21,19,.88))}
+.lite .glass{-webkit-backdrop-filter:none;backdrop-filter:none;background:rgba(18,21,19,.94)}
 /* the "lens": a thicker drop of glass marking the active item */
 .lens,.seg-lens,.tab-btn[aria-pressed="true"]{
   background:radial-gradient(130% 150% at 50% -25%,rgba(255,255,255,.34),rgba(255,255,255,.08) 55%,rgba(52,226,122,.16));
@@ -1038,7 +1042,7 @@ function nextStage(){
   else if (s === 'lock'){ cut.stage = 'split'; }
   else if (s === 'split'){ cut.stage = 'hold'; shakeStart(stageDur('hold') / 1000); setChip(cut.duel ? 'Дуэль: ' + HOLD_Q[cut.kind] : `Разрез <b>${cut.no}</b> · ${HOLD_Q[cut.kind]}`); }
   else if (s === 'hold'){ cut.stage = 'fall'; shakeStop(); applyCut(); sfx.thud(); spawnDebris(); }
-  else if (s === 'fall'){ cut.stage = 'cam'; camTarget(round.piece.poly); }
+  else if (s === 'fall'){ cut.stage = 'cam'; camTarget(round.piece); }
   else if (s === 'cam'){
     const w = round.winner;
     if (w){ cut = null; finishRound(w); }
@@ -1441,30 +1445,33 @@ $('#btnVerifyLast').addEventListener('click', e => openHistory(e.currentTarget.d
 
 /* ---------- timers ---------- */
 const mmss = ms => { const s = clamp(Math.ceil(ms / 1000), 0, 59); return '00:' + String(s).padStart(2, '0'); };
+const domCache = new Map();
+function put(sel, key, v){ const k = sel + key; if (domCache.get(k) === v) return; domCache.set(k, v); const el = $(sel); if (!el) return;
+  if (key === 'text') el.textContent = v; else if (key === 'html') el.innerHTML = v; else if (key === 'hidden') el.hidden = v; else el.style[key] = v; }
 function tickOverlays(t){
   const bt = $('#betTimer'), plate = $('#prepPlate'), row = round && round.row;
   if (phase === 'betting'){
     const close = row && row.bets_close_at ? Date.parse(row.bets_close_at) : null;
-    bt.hidden = false;
-    $('#btLbl').textContent = close ? 'Ставки' : 'Ждём игроков';
-    $('#btVal').textContent = close ? mmss(close - t) : '—';
-    $('#btBar').style.width = close ? (clamp((close - t) / timing.bet_ms, 0, 1) * 100).toFixed(1) + '%' : '100%';
+    put('#betTimer', 'hidden', false);
+    put('#btLbl', 'text', close ? 'Ставки' : 'Ждём игроков');
+    put('#btVal', 'text', close ? mmss(close - t) : '—');
+    put('#btBar', 'width', close ? (clamp((close - t) / timing.bet_ms, 0, 1) * 100).toFixed(0) + '%' : '100%');
     bt.classList.toggle('urgent', !!close && close - t <= 3000);
-  } else bt.hidden = true;
+  } else put('#betTimer', 'hidden', true);
   if (phase === 'closing' || phase === 'prep'){
-    plate.hidden = false;
-    $('#ppMod').hidden = phase === 'closing';
-    if (phase === 'closing'){ $('#ppText').innerHTML = 'Ставки закрыты · <b>считаем раунд…</b>'; $('#ppBar').style.width = '100%'; }
+    put('#prepPlate', 'hidden', false);
+    put('#ppMod', 'hidden', phase === 'closing');
+    if (phase === 'closing'){ put('#ppText', 'html', 'Ставки закрыты · <b>считаем раунд…</b>'); put('#ppBar', 'width', '100%'); }
     else {
       const left = Date.parse(row.prep_until) - t;
-      $('#ppText').innerHTML = `Ставки закрыты · старт через <b>${clamp(Math.ceil(left / 1000), 1, 9)}</b> с`;
-      $('#ppBar').style.width = (clamp(left / timing.prep_ms, 0, 1) * 100).toFixed(1) + '%';
+      put('#ppText', 'html', `Ставки закрыты · старт через <b>${clamp(Math.ceil(left / 1000), 1, 9)}</b> с`);
+      put('#ppBar', 'width', (clamp(left / timing.prep_ms, 0, 1) * 100).toFixed(0) + '%');
     }
-  } else if (!plate.hidden) plate.hidden = true;
+  } else put('#prepPlate', 'hidden', true);
   if (phase === 'result' && row && row.ends_at){
     const left = Date.parse(row.ends_at) - t, ns = $('#nextSec'), nb = $('#nwBar');
-    if (ns) ns.textContent = Math.max(0, Math.ceil(left / 1000));
-    if (nb) nb.style.width = (clamp(left / timing.result_ms, 0, 1) * 100).toFixed(1) + '%';
+    if (ns){ const v = String(Math.max(0, Math.ceil(left / 1000))); if (ns.textContent !== v) ns.textContent = v; }
+    if (nb){ const v = (clamp(left / timing.result_ms, 0, 1) * 100).toFixed(0) + '%'; if (nb.style.width !== v) nb.style.width = v; }
   }
 }
 function uiTick(t){
@@ -1490,9 +1497,20 @@ function uiTick(t){
 /* ---------- canvas ---------- */
 const canvas = $('#arena'), ctx = canvas.getContext('2d');
 let W = 0, H = 0, DPR = 1;
+/* quality: drops by itself when the device can't keep up (lite = no canvas shadows, then a lower canvas resolution) */
+const Q = {cap: 2, lite: false, sh: 1, acc: 0, n: 0};
+function adaptQuality(ms){
+  if (document.hidden || !(ms > 0) || ms > 500) return;
+  Q.acc += ms; Q.n++;
+  if (Q.acc < 2500) return;
+  const fps = Q.n * 1000 / Q.acc; Q.acc = 0; Q.n = 0;
+  if (fps >= 45) return;
+  if (!Q.lite){ Q.lite = true; Q.sh = 0; document.documentElement.classList.add('lite'); }
+  else if (Q.cap > 1.2){ Q.cap = Math.max(1.2, Q.cap - .4); resize(); }
+}
 function resize(){
   const r = canvas.getBoundingClientRect();
-  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  DPR = Math.min(window.devicePixelRatio || 1, Q.cap);
   W = r.width; H = r.height;
   canvas.width = Math.max(1, Math.round(W * DPR)); canvas.height = Math.max(1, Math.round(H * DPR));
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -1509,7 +1527,19 @@ function patternOf(p){
 }
 
 const cam = {cx: .5, cy: .5, ls: null, bb: bbox(UNIT)};
-function camTarget(poly){ cam.bb = bbox(poly); }
+function camTarget(shape){
+  if (Array.isArray(shape)){ cam.bb = bbox(shape); return; }
+  const b = bbox(shape.poly);
+  if (!shape.holes || !shape.holes.length){ cam.bb = b; return; }
+  const N = 36, cw = (b.x1 - b.x0) / N, ch = (b.y1 - b.y0) / N;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++){
+    const x = b.x0 + (i + .5) * cw, y = b.y0 + (j + .5) * ch;
+    if (!insideRegion(shape, x, y)) continue;
+    if (x - cw < x0) x0 = x - cw; if (x + cw > x1) x1 = x + cw; if (y - ch < y0) y0 = y - ch; if (y + ch > y1) y1 = y + ch;
+  }
+  cam.bb = x1 > x0 ? {x0: Math.max(x0, b.x0), y0: Math.max(y0, b.y0), x1: Math.min(x1, b.x1), y1: Math.min(y1, b.y1)} : b;
+}
 function camGoal(){
   const b = cam.bb, size = Math.max(b.x1 - b.x0, b.y1 - b.y0, 1e-12);
   return {cx: (b.x0 + b.x1) / 2, cy: (b.y0 + b.y1) / 2, ls: Math.log((Math.min(W, H) * 0.86) / size)};
@@ -1564,7 +1594,7 @@ function drawBackdrop(){
 
 function drawAvatar(X, Y, r, p, showName){
   ctx.save();
-  ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 3;
+  ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 10 * Q.sh; ctx.shadowOffsetY = 3;
   ctx.beginPath(); ctx.arc(X, Y, r, 0, Math.PI * 2); ctx.fillStyle = '#0a0b0a'; ctx.fill();
   ctx.restore();
   const im = avatarImg(p.avatar);
@@ -1607,7 +1637,7 @@ function drawRegion(rg, o){
   ctx.translate(-c[0], -c[1]);
 
   const polyFor = p => (o.polys && o.polys[p.id]) || polyOf(p);
-  if (!o.noShadow){ path(); ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.7)'; ctx.shadowBlur = 26; ctx.shadowOffsetY = 12; ctx.fillStyle = '#0a0b0a'; ctx.fill('evenodd'); ctx.restore(); }
+  if (!o.noShadow){ path(); ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.7)'; ctx.shadowBlur = 26 * Q.sh; ctx.shadowOffsetY = 12; ctx.fillStyle = '#0a0b0a'; ctx.fill('evenodd'); ctx.restore(); }
 
   ctx.save(); path(); ctx.clip('evenodd');
   const bp = bbox(pts);
@@ -1642,7 +1672,10 @@ function drawRegion(rg, o){
   ctx.restore();
 
   ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(244,246,243,.55)';
-  pathPts(pts); ctx.stroke();
+  if (hps.length){
+    ctx.save(); ctx.beginPath(); ctx.rect(-LIM, -LIM, W + 2 * LIM, H + 2 * LIM); for (const hp of hps) addPoly(hp); ctx.clip('evenodd');
+    pathPts(pts); ctx.stroke(); ctx.restore();
+  } else { pathPts(pts); ctx.stroke(); }
   if (hps.length){ // rims of the punched-out circles, only where they cross the piece
     ctx.save(); pathPts(pts); ctx.clip();
     ctx.beginPath(); for (const hp of hps) addPoly(hp); ctx.stroke();
@@ -1650,7 +1683,7 @@ function drawRegion(rg, o){
   }
   if (o.glow){
     ctx.save(); pathPts(pts);
-    ctx.shadowColor = o.glow; ctx.shadowBlur = 18 + 10 * Math.sin(performance.now() / 260);
+    ctx.shadowColor = o.glow; ctx.shadowBlur = (18 + 10 * Math.sin(performance.now() / 260)) * Q.sh;
     ctx.lineWidth = 3; ctx.strokeStyle = o.glow; ctx.stroke(); ctx.restore();
   }
   if (!o.noAvatars) drawAvatars(rg);
@@ -1667,6 +1700,11 @@ function partStats(rg, T){
   }
   if (A <= 0) return null;
   let c = [cx / A, cy / A];
+  const near = rg.holes.filter(h => clipConvex(q, h.poly).length >= 3);
+  if (near.length){
+    const sp = roomiestPoint(q, near);
+    if (sp) return {A, c: sp.p, q, room: sp.d};
+  }
   if (!insideRegion({poly: q, holes: rg.holes}, c[0], c[1])){
     // centroid fell into a hole: pick the sample point farthest from the holes
     const b = bbox(q); let best = null, bd = -1;
@@ -1680,6 +1718,33 @@ function partStats(rg, T){
   }
   return {A, c, q};
 }
+/* distance from a point to the nearest edge of a convex polygon or rim of a hole (negative = outside) */
+function clearance(q, holes, x, y){
+  let d = Infinity;
+  for (let i = 0; i < q.length; i++){
+    const a = q[i], b = q[(i + 1) % q.length], ex = b[0] - a[0], ey = b[1] - a[1], L = ex * ex + ey * ey || 1e-18;
+    const t = clamp(((x - a[0]) * ex + (y - a[1]) * ey) / L, 0, 1);
+    d = Math.min(d, Math.hypot(x - a[0] - ex * t, y - a[1] - ey * t));
+  }
+  for (const h of holes) d = Math.min(d, Math.hypot(x - h.c[0], y - h.c[1]) - h.r);
+  return d;
+}
+/* the point of (q minus holes) farthest from every edge: coarse grid, then a finer pass around the best cell */
+function roomiestPoint(q, holes){
+  const b = bbox(q); let best = null, bd = 0;
+  const scan = (x0, y0, w, h, n) => {
+    for (let i = 0; i <= n; i++) for (let j = 0; j <= n; j++){
+      const x = x0 + w * i / n, y = y0 + h * j / n;
+      if (!inside(q, x, y)) continue;
+      const d = clearance(q, holes, x, y);
+      if (d > bd){ bd = d; best = [x, y]; }
+    }
+  };
+  const w = b.x1 - b.x0, h = b.y1 - b.y0;
+  scan(b.x0, b.y0, w, h, 10);
+  if (best) scan(best[0] - w / 10, best[1] - h / 10, w / 5, h / 5, 6);
+  return best ? {p: best, d: bd} : null;
+}
 /* where and how big a player's avatar sits inside a region, for a given territory polygon */
 function avatarGeom(rg, poly){
   const st = partStats(rg, poly); if (!st) return null;
@@ -1691,7 +1756,8 @@ function avatarGeom(rg, poly){
   let per = 0; for (let i = 0; i < st.q.length; i++){ const q = st.q[i], w = st.q[(i + 1) % st.q.length]; per += Math.hypot(w[0] - q[0], w[1] - q[1]); }
   const inr = per > 0 ? 2 * st.A / per * S : 0;
   if (inr < 6) return null;
-  const rad = clamp(Math.min(Math.sqrt(a) * .2, minSide * .38, inr * .95), 7, 30);
+  let rad = clamp(Math.min(Math.sqrt(a) * .2, minSide * .38, inr * .95), 7, 30);
+  if (st.room != null){ const room = st.room * S * .85; if (room < 6) return null; rad = clamp(Math.min(rad, room), 7, 30); }
   return {X: sx(st.c[0]), Y: sy(st.c[1]) - (rad >= 15 ? 7 : 0), rad, name: rad >= 15 && minSide > 64 && inr > 26};
 }
 function drawAvatars(rg){
@@ -1720,10 +1786,10 @@ function bladeStyle(style, alpha){
   if (style === 'aim'){
     ctx.setLineDash([7, 6]); ctx.lineDashOffset = -performance.now() / 30;
     ctx.strokeStyle = 'rgba(52,226,122,.95)'; ctx.lineWidth = 2.2;
-    ctx.shadowColor = 'rgba(52,226,122,.9)'; ctx.shadowBlur = 10;
+    ctx.shadowColor = 'rgba(52,226,122,.9)'; ctx.shadowBlur = 10 * Q.sh;
   } else {
     ctx.strokeStyle = `rgba(255,255,255,${alpha == null ? 1 : alpha})`; ctx.lineWidth = 3.5;
-    ctx.shadowColor = 'rgba(134,255,182,1)'; ctx.shadowBlur = 22;
+    ctx.shadowColor = 'rgba(134,255,182,1)'; ctx.shadowBlur = 22 * Q.sh;
   }
 }
 function drawBlades(rg, g, style, alpha){
@@ -1862,7 +1928,14 @@ function drawCutting(){
       const C = [sx(cut.center[0]), sy(cut.center[1])];
       pl.parts.forEach((q, i) => {
         let X, Y;
-        if (pl.kind === 'circle'){ X = C[0]; Y = i === 0 ? C[1] : C[1] + pl.r * S + 30; }
+        if (pl.kind === 'circle'){
+          if (i === 0){ X = C[0]; Y = C[1]; }
+          else {
+            if (!cut.ringLabel){ const rp = roomiestPoint(q.poly, q.holes); cut.ringLabel = rp ? rp.p : [cut.center[0], cut.center[1] + pl.r * 1.4]; }
+            X = sx(cut.ringLabel[0]); Y = sy(cut.ringLabel[1]);
+            if (Math.hypot(X - C[0], Y - C[1]) < 48){ const a = Math.atan2(Y - C[1], X - C[0]) || Math.PI / 2; X = C[0] + Math.cos(a) * 48; Y = C[1] + Math.sin(a) * 48; }
+          }
+        }
         else if (pl.kind === 'double' || pl.kind === 'cross'){
           // strips and quarters: label sits inside its own piece
           const pc = polyCentroid(q.poly), P = [sx(pc[0]), sy(pc[1])];
@@ -1956,9 +2029,24 @@ function draw(now){
 
 /* ---------- main loop ---------- */
 let last = 0;
+let frameErrors = 0;
 function frame(ts){
-  const dt = last ? Math.min(.05, (ts - last) / 1000) : 0;
+  requestAnimationFrame(frame);          // scheduled first: whatever happens below, the game keeps running
+  try { tick(ts); frameErrors = 0; }
+  catch(e){
+    console.error('frame', e);
+    if (++frameErrors >= 2){ frameErrors = 0; resync(); }
+  }
+}
+/* drop what is on screen and rebuild it from the server's data on the next frame */
+function resync(){
+  cut = null; round = null; players = []; tree = null; curId = null; phase = 'boot'; cutClock = 0; silent = false;
+  $('#result').hidden = true;
+}
+function tick(ts){
+  const ms = last ? ts - last : 0, dt = Math.min(.05, ms / 1000);
   last = ts;
+  adaptQuality(ms);
   const t = srvNow();
   syncPhase();
   if (preRound() && tree){
@@ -1968,10 +2056,11 @@ function frame(ts){
     layoutTree(tree, UNIT, 'disp', 'dpoly');
   }
   if (phase === 'closing') requestAdvance();
-  if (phase === 'cutting' && round && round.row){
-    if (cut){ stepCut(dt * 1000); cutClock += dt * 1000; }
-    const behind = t - Date.parse(round.row.prep_until) - cutClock;
-    if (behind > 450 && cut) fastForward(behind);      // tab was hidden or the device lagged
+  if (phase === 'cutting' && round && round.row && cut){
+    // the animation is a pure function of server time: a slow phone shows fewer frames, never falls behind
+    const lag = t - Date.parse(round.row.prep_until) - cutClock;
+    if (lag > 1500) fastForward(lag);                      // tab was hidden: jump silently
+    else if (lag > 0){ stepCut(lag); cutClock += lag; }
   }
   updateCamera(dt);
   updateParticles(dt);
@@ -1979,7 +2068,6 @@ function frame(ts){
   uiTick(t);
   tickOverlays(t);
   renderBalance();
-  requestAnimationFrame(frame);
 }
 
 /* ---------- start: Telegram sign-in → live data ---------- */
