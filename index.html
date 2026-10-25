@@ -550,7 +550,7 @@ button:disabled{cursor:not-allowed}
       <div class="test-sec">Время (для всех игроков)</div>
       <div class="test-row"><div><b>Быстрые раунды</b><span>Ставки 6 с, подготовка 4 с, итог 3 с</span></div><button class="switch" id="testFast" role="switch" aria-checked="false" aria-label="Быстрые раунды"></button></div>
       <div class="test-sec">Комиссия «дома»</div>
-      <div class="test-row"><div><b id="houseTotal">—</b><span id="houseSub">2% с банка, минимум 0.1</span></div></div>
+      <div class="test-row"><div><b id="houseTotal">—</b><span id="houseSub">2% (мин. 0.1), победитель всегда в плюсе</span></div></div>
       <div class="test-sec">Игра в одиночку</div>
       <div class="test-actions">
         <button id="testBots">Посадить 3 ботов</button>
@@ -579,7 +579,7 @@ button:disabled{cursor:not-allowed}
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script src="core.js?v=2026-10-25.2"></script>
+<script src="core.js?v=2026-10-25.3"></script>
 <script>
 'use strict';
 (function(){
@@ -704,7 +704,19 @@ const profiles = new Map();         // user id → {name, avatar_url, is_bot}
 const pendingProfiles = new Set();
 let betBusy = false, faucetBusy = false, advanceAt = 0;
 let feeCfg = {pct: 0, min: 0};          // public rule from the server: % of the pot, with a minimum
-const feeOf = pot => pot > 0 && feeCfg.pct ? Math.min(pot, Math.max(r2(pot * feeCfg.pct / 100), Number(feeCfg.min) || 0)) : 0;
+/* rule 1 (first fee rounds): pct of the pot, at least min.
+   rule 2: the same, but if that leaves the winner below their own stake + guard, pct of what they won from the others;
+   never more than (won from others − guard), so the winner always ends at least `guard` up. Same formula as the server. */
+function feeOf(pot, stake, rule){
+  const pc = Number(feeCfg.pct) || 0, mn = Number(feeCfg.min) || 0;
+  if (!(pot > 0) || !pc) return 0;
+  if (rule !== 2) return Math.min(pot, Math.max(r2(pot * pc / 100), mn));
+  const guard = feeCfg.guard != null ? Number(feeCfg.guard) : 0.1, gain = r2(pot - stake);
+  if (!(gain > 0)) return 0;
+  let f = Math.max(r2(pot * pc / 100), mn);
+  if (pot - f < stake + guard - 1e-9) f = Math.max(r2(gain * pc / 100), mn);
+  return Math.max(0, r2(Math.min(f, gain - guard)));
+}
 const roundFee = row => row && row.fee != null ? Number(row.fee) : 0;   // rounds before the commission have none
 
 /* ---------- avatars ---------- */
@@ -1211,7 +1223,7 @@ function updateDock(){
     : phase === 'boot' ? 'Подключение…' : phase === 'closing' || phase === 'prep' ? 'Ставки закрыты' : phase === 'cutting' ? 'Идёт раунд' : 'Скоро новый раунд';
   $('#betStack').classList.toggle('tray-down', !betting);
   if (phase === 'betting' && players.length < 2) note(m ? 'Вы в игре. Раунд стартует, когда поставит второй игрок.' : 'Сделайте ставку — раунд стартует, когда в нём будут двое.');
-  else if (phase === 'betting' && !m) note(`Игровая валюта. Раз в раунд «+» даёт от 10 до 100.${feeCfg.pct ? ` Комиссия ${feeCfg.pct}% с банка.` : ''}`);
+  else if (phase === 'betting' && !m) note(`Игровая валюта. Раз в раунд «+» даёт от 10 до 100.${feeCfg.pct ? ` Комиссия ${feeCfg.pct}%, победитель всегда в плюсе.` : ''}`);
   if (phase === 'closing' || phase === 'prep') note(m ? `Ставки закрыты · ваш шанс ${pct(m.stake / pool())}` : 'Ставки закрыты. Идёт подготовка к разрезам.');
   if (phase === 'cutting') note(!m ? 'Раунд идёт. Ставки откроются после него.' : (m.out ? `Вы выбыли на ${m.outCut}-м разрезе. Ставки откроются после раунда.` : `Вы в игре · шанс ${pct(m.chance)}`));
   if (phase === 'result') note('Следующий раунд скоро начнётся.');
@@ -1387,7 +1399,7 @@ async function loadHouse(){
   const {data, error} = await sb.rpc('house_stats', {p_code: adminCode});
   if (error || !data) return;
   $('#houseTotal').innerHTML = `${fmt(data.total)} ${GEM} заработано`;
-  $('#houseSub').textContent = `сегодня ${fmt(data.today)} · раундов с комиссией: ${data.rounds} · ${feeCfg.pct}% с банка, минимум ${fmt(feeCfg.min)}`;
+  $('#houseSub').textContent = `сегодня ${fmt(data.today)} · раундов с комиссией: ${data.rounds} · ${feeCfg.pct}% (мин. ${fmt(feeCfg.min)}), победитель всегда в плюсе`;
 }
 function renderTest(){
   const ok = !!adminState;
@@ -1522,10 +1534,14 @@ async function verifyRound(id, tamper){
   if (pot !== Number(r.pot)) out.push({ok: false, text: `Сумма ставок ${fmt(pot)}, а пул ${fmt(r.pot)}.`});
   else if (r.fee == null) out.push({ok: true, text: `Пул ${fmt(pot)} = сумма всех ставок, его целиком получил победитель (раунд до введения комиссии).`});
   else {
-    const fee = Number(r.fee), exp = feeOf(pot), okFee = Math.abs(exp - fee) < 0.006;
+    const rule = r.fee_rule === 2 ? 2 : 1, fee = Number(r.fee);
+    const stake = r2(bets.filter(b => b.user_id === r.winner_id).reduce((a, b) => a + Number(b.amount), 0));
+    const exp = feeOf(pot, stake, rule), okFee = Math.abs(exp - fee) < 0.006, net = r2(pot - fee - stake);
+    const how = rule === 2 && exp < Math.max(r2(pot * feeCfg.pct / 100), Number(feeCfg.min) || 0) - 1e-9
+      ? `${feeCfg.pct}% от выигрыша у других, чтобы победитель остался в плюсе` : `${feeCfg.pct}% с банка, минимум ${fmt(feeCfg.min)}`;
     out.push({ok: okFee, text: okFee
-      ? `Пул ${fmt(pot)} = сумма всех ставок. Комиссия ${fmt(fee)} (${feeCfg.pct}% с банка, минимум ${fmt(feeCfg.min)}), победитель получил ${fmt(r2(pot - fee))}.`
-      : `Комиссия ${fmt(fee)}, а по правилу ${feeCfg.pct}% (минимум ${fmt(feeCfg.min)}) должна быть ${fmt(exp)}.`});
+      ? `Пул ${fmt(pot)} = сумма всех ставок. Комиссия ${fmt(fee)} (${how}). Победитель поставил ${fmt(stake)}, получил ${fmt(r2(pot - fee))}: ${net >= 0 ? '+' : ''}${fmt(net)}.`
+      : `Комиссия ${fmt(fee)}, а по правилу должна быть ${fmt(exp)}.`});
   }
   return out;
 }
@@ -2181,7 +2197,7 @@ const TG_ERRORS = {
   no_bot_token: 'Сервер ещё не настроен: нет токена бота.'
 };
 /* every deploy bumps BUILD here and in version.json; open games notice and reload between rounds */
-const BUILD = '2026-10-25.2';
+const BUILD = '2026-10-25.3';
 let pendingVersion = null;
 async function checkVersion(){
   try {
