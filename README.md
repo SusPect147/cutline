@@ -34,5 +34,5 @@ supabase secrets set TELEGRAM_BOT_TOKEN=...   # токен бота, тольк�
 
 ```sql
 insert into private.admin_config(key, value)
-values ('code_sha256', encode(extensions.digest('ваш-код', 'sha256'), 'hex'));
+values ('code_hash', encode(extensions.digest('ваш-код', 'sha256'), 'hex'));
 ```
