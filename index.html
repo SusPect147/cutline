@@ -578,6 +578,15 @@ body.on-profile .dock,body.on-profile #gameView{display:none!important}
 .wal-row code{font-family:var(--font-num);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .link-btn{margin-top:8px;display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;color:var(--green-hi);padding:4px 2px}
 .link-btn svg{width:16px;height:16px}
+/* verdict after the cut limit: the biggest territory wins */
+.verdict .vd-list{width:100%;display:flex;flex-direction:column;gap:5px;margin-top:4px}
+.vd-row{display:grid;grid-template-columns:22px minmax(0,1fr) auto;align-items:center;gap:8px;padding:6px 9px;border-radius:11px;background:rgba(255,255,255,.05);font-size:13px;font-weight:600;text-align:left}
+.vd-row .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vd-row b{font-family:var(--font-num);font-weight:800}
+.vd-row.win{background:rgba(52,226,122,.16);box-shadow:inset 0 0 0 1px rgba(52,226,122,.55);animation:vdWin .6s cubic-bezier(.3,1.5,.5,1) .5s both}
+.vd-row.win b{color:var(--green-hi)}
+@keyframes vdWin{from{transform:scale(.96)}to{transform:none}}
+@media (prefers-reduced-motion: reduce){ .vd-row.win{animation:none} }
 </style>
 </head><body>
 <div id="splash" aria-hidden="true">
@@ -642,6 +651,11 @@ body.on-profile .dock,body.on-profile #gameView{display:none!important}
         <div class="pp-mod" id="ppMod"><small class="pp-mod-cap" data-i18n="pp.modcap">Round modifier</small><div class="reel"><div class="reel-strip" id="reelStrip"></div><span class="reel-frame"></span></div><span class="pp-mod-desc" id="ppModDesc"></span></div>
       </div>
       <div class="mod-badge glass smoke" id="modBadge" hidden></div>
+      <div class="prep-plate verdict glass smoke" id="verdictPlate" hidden>
+        <span class="pp-lbl" data-i18n="vd.title">Cut limit</span>
+        <span class="pp-text" id="vdText"></span>
+        <div class="vd-list" id="vdList"></div>
+      </div>
       <div class="arena-chip glass smoke" id="arenaChip">Connecting…</div>
       <div class="result" id="result" hidden></div>
       <div class="boot" id="bootBox" hidden></div>
@@ -762,8 +776,6 @@ body.on-profile .dock,body.on-profile #gameView{display:none!important}
       <button class="opt-row" role="radio" data-lang="en" aria-checked="true"><span class="flag">EN</span><span class="grow">English</span><span class="radio"></span></button>
       <button class="opt-row" role="radio" data-lang="ru" aria-checked="false"><span class="flag">RU</span><span class="grow">Русский</span><span class="radio"></span></button>
     </div>
-    <div class="test-sec" data-i18n="pr.admin">Admin tools</div>
-    <div class="opt-list"><button class="opt-row" id="btnAdmin"><span class="grow" data-i18n="adm.title">Admin</span><span class="chev">›</span></button></div>
   </div>
 </div>
 
@@ -807,37 +819,6 @@ body.on-profile .dock,body.on-profile #gameView{display:none!important}
   </div>
 </div>
 
-<div class="sheet-back" id="testSheet" hidden>
-  <div class="sheet topup-sheet" role="dialog" aria-modal="true" data-i18n-aria="adm.title">
-    <div class="grabber"></div>
-    <div class="sheet-head"><h2 data-i18n="adm.title">Admin</h2><button id="testClose" data-i18n="close">Close</button></div>
-    <div id="testLogin">
-      <div class="test-sec" data-i18n="adm.code">Admin code</div>
-      <div class="test-input"><input id="testCode" type="password" autocomplete="off" placeholder="cut-…" data-i18n-aria="adm.code"><button id="testLoginBtn" data-i18n="adm.login">Log in</button></div>
-    </div>
-    <div id="testPanel" hidden>
-      <div class="test-sec" data-i18n="adm.money">Money</div>
-      <div class="adm-totals" id="admTotals">…</div>
-      <div class="test-sec" data-i18n="adm.wd">Withdrawal requests</div>
-      <div class="adm-wd" id="admWd"></div>
-      <div class="test-sec" data-i18n="adm.unmatched">Deposits without a valid code</div>
-      <div class="adm-wd" id="admUnm"></div>
-      <div class="test-sec" data-i18n="adm.house">House commission</div>
-      <div class="test-row"><div><b id="houseTotal">—</b><span id="houseSub"></span></div></div>
-      <div class="test-sec" data-i18n="adm.nextmod">Next round modifier</div>
-      <div class="test-grid" id="testMods"></div>
-      <div class="test-sec" data-i18n="adm.timing">Timing</div>
-      <div class="test-row"><div><b data-i18n="adm.fast">Fast rounds</b><span data-i18n="adm.fast.d"></span></div><button class="switch" id="testFast" role="switch" aria-checked="false" data-i18n-aria="adm.fast"></button></div>
-      <div class="test-sec" data-i18n="adm.solo">Solo testing</div>
-      <div class="test-actions">
-        <button id="testBots" data-i18n="adm.bots">Seat 3 bots</button>
-        <button class="primary" id="testSkip" data-i18n="adm.skip">Skip waiting</button>
-      </div>
-    </div>
-    <p class="test-state" id="testState" data-i18n="adm.state"></p>
-  </div>
-</div>
-
 <div class="sheet-back" id="amtSheet" hidden>
   <div class="sheet topup-sheet" role="dialog" aria-modal="true" data-i18n-aria="amt.title">
     <div class="grabber"></div>
@@ -856,7 +837,7 @@ body.on-profile .dock,body.on-profile #gameView{display:none!important}
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script src="core.js?v=2026-10-26.4"></script>
+<script src="core.js?v=2026-10-26.5"></script>
 <script>
 'use strict';
 (function(){
@@ -884,10 +865,10 @@ const I18N = {
     'connecting': 'Connecting…', 'players': 'Players', 'mods': 'Modifiers', 'how': 'How to play',
     'how.1': 'A bet buys territory: the bigger the bet, the bigger the plot. Yours is bright green. A round starts once at least two players have bet.',
     'how.2': 'When betting closes there is a short preparation: the field is fixed and the round modifier is drawn.',
-    'how.3': 'The field gets cut, and every part survives with a chance equal to its share of the area. Cutting goes on until one owner is left, who takes the whole pot.',
+    'how.3': 'The field gets cut, and every part survives with a chance equal to its share of the area. Cutting goes on until one owner is left, who takes the whole pot. After 25 cuts the biggest territory wins.',
     'how.4.real': 'PvP is played for real Gram: deposit in your profile. The house takes 2% and the winner always ends up ahead.',
     'how.4.fun': 'ForFun uses a test balance: you start with 10, and «+» gives a random 10–100 once per round.',
-    'fair.text': 'The server computes everything: balances, bets and results cannot be changed from the browser. Your chance always equals your share of the pot, and any finished round can be recomputed and checked on your side.',
+    'fair.text': 'The server computes everything: balances, bets and results cannot be changed from the browser. Every cut keeps a part with a chance equal to its share of the area, and any finished round can be recomputed and checked on your side.',
     'fair.round': 'Round', 'fair.hash': 'seed hash (published before bets)', 'fair.entropy': 'Closing entropy',
     'fair.pending': 'appears after bets close', 'fair.prev': 'Previous round', 'fair.prevline': '#{id} · seed {seed} · entropy {ent}',
     'fair.verify': 'Verify round #{id}',
@@ -984,9 +965,9 @@ const I18N = {
     'dep.loading': 'Loading the wallet connector…', 'dep.sent': 'Sent from your wallet. Waiting for the network to confirm…',
     'dep.cancelled': 'The payment was cancelled in the wallet.', 'dep.amount.bad': 'Enter an amount of at least {m} Gram',
     'wd.title': 'Withdraw Gram', 'wd.amount': 'Amount', 'wd.max': 'Max', 'wd.address': 'Your TON wallet address',
-    'wd.ph': 'UQ… or EQ…', 'wd.info': 'Withdrawals are checked and paid by hand, usually within 24 hours. Minimum {m} Gram.',
+    'wd.ph': 'UQ… or EQ…', 'wd.info': 'Withdrawals are sent to your wallet automatically, usually within a few minutes; large amounts are checked by hand first. Minimum {m} Gram.',
     'wd.send': 'Request withdrawal', 'wd.sending': 'Sending the request…',
-    'wd.ok': 'Request #{id} accepted. {amt} Gram will be sent to your wallet after the check.',
+    'wd.ok': 'Request #{id} accepted. {amt} Gram is on its way to your wallet.',
     'wd.flagged': 'Request #{id} needs a manual check. Please write to support and mention the number.',
     'wd.addr.bad': 'This does not look like a TON address. Copy it from your wallet: 48 characters, starts with UQ or EQ.'
   },
@@ -1004,10 +985,10 @@ const I18N = {
     'connecting': 'Подключаемся…', 'players': 'Игроки', 'mods': 'Модификаторы', 'how': 'Как играть',
     'how.1': 'Ставка покупает территорию: чем больше ставка, тем больше участок. Ваш участок ярко-зелёный. Раунд стартует, когда ставят хотя бы двое.',
     'how.2': 'После приёма ставок идёт подготовка: ставки закрыты, поле зафиксировано, выпадает модификатор раунда.',
-    'how.3': 'Поле режут, и каждая часть устоит с шансом, равным её доле площади. Режут, пока не останется один владелец, он забирает весь пул.',
+    'how.3': 'Поле режут, и каждая часть устоит с шансом, равным её доле площади. Режут, пока не останется один владелец, он забирает весь пул. Если 25 разрезов не хватило, побеждает самая большая территория.',
     'how.4.real': 'PvP идёт на настоящие Gram: пополнение в профиле. Комиссия «дома» 2%, победитель всегда остаётся в плюсе.',
     'how.4.fun': 'В ForFun тестовый баланс: на старте 10, кнопка «+» раз в раунд даёт случайно от 10 до 100.',
-    'fair.text': 'Всё считает сервер: баланс, ставки и результат нельзя изменить из браузера. Ваш шанс всегда равен доле вашей ставки в пуле, а любой завершённый раунд можно пересчитать у себя и сверить.',
+    'fair.text': 'Всё считает сервер: баланс, ставки и результат нельзя изменить из браузера. Каждый разрез оставляет часть с шансом, равным её доле площади, а любой завершённый раунд можно пересчитать у себя и сверить.',
     'fair.round': 'Раунд', 'fair.hash': 'хеш сида (опубликован до ставок)', 'fair.entropy': 'Энтропия закрытия',
     'fair.pending': 'появится после закрытия ставок', 'fair.prev': 'Прошлый раунд', 'fair.prevline': '#{id} · сид {seed} · энтропия {ent}',
     'fair.verify': 'Проверить раунд #{id}',
@@ -1104,9 +1085,9 @@ const I18N = {
     'dep.loading': 'Загружаем подключение кошелька…', 'dep.sent': 'Отправлено из кошелька. Ждём подтверждения сети…',
     'dep.cancelled': 'Платёж отменён в кошельке.', 'dep.amount.bad': 'Введите сумму от {m} Gram',
     'wd.title': 'Вывести Gram', 'wd.amount': 'Сумма', 'wd.max': 'Всё', 'wd.address': 'Адрес вашего TON-кошелька',
-    'wd.ph': 'UQ… или EQ…', 'wd.info': 'Выводы проверяются и выплачиваются вручную, обычно в течение 24 часов. Минимум {m} Gram.',
+    'wd.ph': 'UQ… или EQ…', 'wd.info': 'Вывод приходит на ваш кошелёк автоматически, обычно за несколько минут; крупные суммы сначала проверяются вручную. Минимум {m} Gram.',
     'wd.send': 'Запросить вывод', 'wd.sending': 'Отправляем заявку…',
-    'wd.ok': 'Заявка №{id} принята. {amt} Gram придут на ваш кошелёк после проверки.',
+    'wd.ok': 'Заявка №{id} принята. {amt} Gram уже отправляются на ваш кошелёк.',
     'wd.flagged': 'Заявке №{id} нужна ручная проверка. Напишите в поддержку и укажите номер.',
     'wd.addr.bad': 'Это не похоже на TON-адрес. Скопируйте его из кошелька: 48 символов, начинается с UQ или EQ.'
   }
@@ -1666,7 +1647,8 @@ function nextStage(){
   else if (s === 'fall'){ cut.stage = 'cam'; camTarget(round.piece); }
   else if (s === 'cam'){
     const w = round.winner;
-    if (w){ cut = null; finishRound(w); }
+    if (w && round.endBy === 'limit'){ cut.stage = 'verdict'; showVerdict(); }
+    else if (w){ cut = null; finishRound(w); }
     else if (cut.shuffled){
       cut.stage = 'shuffle'; cut.oldPolys = {}; cut.cellSeed = Math.random() * 1000;
       for (const p of players) if (!p.out && cut.shuffled[p.id]){ cut.oldPolys[p.id] = p.poly; p.poly = cut.shuffled[p.id]; }
@@ -1675,6 +1657,16 @@ function nextStage(){
     else { cut = null; beginCut(false); }
   }
   else if (s === 'shuffle'){ cut = null; beginCut(false); }
+  else if (s === 'verdict'){ cut = null; finishRound(round.winner); }
+}
+/* after the 25th cut: who is still on the field and how much of it they hold; the biggest share wins */
+function showVerdict(){
+  const w = round.winner, alive = players.filter(p => !p.out).sort((a, b) => b.chance - a.chance).slice(0, 4);
+  $('#vdText').textContent = t('vd.text', {n: round.cuts});
+  $('#vdList').innerHTML = alive.map(p => `<div class="vd-row${p === w ? ' win' : ''}">${avaHTML(p).replace('class="ava"', 'class="ava ava-sm"')}<span class="nm">${esc(p.me ? t('you') : p.name)}</span><b>${pct(p.chance)}</b></div>`).join('');
+  $('#verdictPlate').hidden = false;
+  setChip(t('chip.verdict', {n: round.cuts}));
+  if (!silent) sfx.beat();
 }
 function applyCut(){
   const pl = cut.plan, step = round.sim.steps[round.step++];
@@ -1690,7 +1682,7 @@ function applyCut(){
     if (c == null){ p.out = true; p.outCut = round.cuts; p.chance = 0; dropped = true; }
     else p.chance = c;
   }
-  if (step.winner){ round.winner = players.find(p => p.id === step.winner); round.lottery = round.sim.lottery; }
+  if (step.winner){ round.winner = players.find(p => p.id === step.winner); round.lottery = round.sim.lottery; round.endBy = step.end || null; }
   if (dropped) sfx.out();
   renderPlayers(); updateDock();
 }
@@ -1702,6 +1694,8 @@ function finishRound(w){
   if (round.finished) return;
   round.finished = true;
   round.winner = w;
+  $('#verdictPlate').hidden = true;
+  if (round.endBy === 'limit') for (const p of players) if (p !== w && !p.out){ p.out = true; p.outCut = round.cuts; p.smaller = true; }
   w.chance = 1;
   const s = round.row, pot = Number(s.pot) || pool(), fee = roundFee(s), win = r2(pot - fee);
   const res = $('#result');
@@ -1709,7 +1703,7 @@ function finishRound(w){
       <span class="ava" style="--c:${w.ring}">${w.avatar ? `<img src="${esc(w.avatar)}" alt="" referrerpolicy="no-referrer">` : esc(w.ini)}</span>
       <div class="result-title">${w.me ? esc(t('res.youwin')) : esc(t('res.wins', {name: w.name}))}</div>
       <div class="result-amt">+${fmt(win)} ${GEM}</div>
-      <div class="result-sub">${MODS[s.mod] ? esc(modName(s.mod)) : ''} · ${esc(t('res.chance', {p: pct(w.start)}))} · ${esc(cutsTxt(s.cuts))}${fee > 0 ? ' · ' + esc(t('res.fee', {pot: fmt(pot), fee: fmt(fee)})) : ''}</div>
+      <div class="result-sub">${MODS[s.mod] ? esc(modName(s.mod)) : ''} · ${esc(t('res.chance', {p: pct(w.start)}))} · ${esc(round.endBy === 'limit' ? t('res.bylimit', {n: s.cuts}) : cutsTxt(s.cuts))}${fee > 0 ? ' · ' + esc(t('res.fee', {pot: fmt(pot), fee: fmt(fee)})) : ''}</div>
       <div class="next-wait"><span>${t('res.next', {s: Math.round(timing.result_ms / 1000)})}</span><span class="nw-bar"><i id="nwBar"></i></span></div>
     </div>`;
   res.hidden = false;
@@ -1933,46 +1927,6 @@ function renderModsPanel(){
   $('#modsList').innerHTML = MOD_KEYS.map(k => `<li><span class="mi">${MODS[k].icon}</span><div><b>${esc(modName(k))}</b><span>${esc(modDesc(k))}</span></div><em>${Math.round(MODS[k].w / tot * 100)}%</em></li>`).join('');
 }
 
-/* ---------- admin test menu (needs the admin code; everything is checked on the server) ---------- */
-const DICE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="4"/><circle cx="9" cy="9" r="1.3" fill="currentColor"/><circle cx="15" cy="15" r="1.3" fill="currentColor"/><circle cx="15" cy="9" r="1.3" fill="currentColor"/><circle cx="9" cy="15" r="1.3" fill="currentColor"/></svg>';
-let adminCode = store.get('cutline.admin', '');
-let adminState = null, adminBusy = false;
-async function adminCall(op, extra){
-  if (adminBusy) return;
-  adminBusy = true; $('#testState').textContent = t('adm.sending');
-  try {
-    const {data, error} = await sb.functions.invoke('game', {body: Object.assign({action: 'admin', code: adminCode, op}, extra || {})});
-    if (error) throw error;
-    if (!data.ok){ adminState = null; $('#testState').textContent = data.error === 'bad_code' ? t('adm.badcode') : t('adm.error', {m: data.error}); }
-    else { adminState = data; store.set('cutline.admin', adminCode); $('#testState').textContent = op === 'state' ? t('adm.ok') : t('adm.done'); loadHouse(); loadMoney(); }
-  } catch(e){ $('#testState').textContent = t('adm.error', {m: e.message || e}); }
-  adminBusy = false;
-  renderTest();
-  refreshRounds();
-}
-async function loadHouse(){
-  const {data, error} = await sb.rpc('house_stats', {p_code: adminCode});
-  if (error || !data) return;
-  $('#houseTotal').innerHTML = esc(t('adm.earned', {x: fmt(data.total) + ' Gram'}));
-  $('#houseSub').textContent = t('adm.earned.sub', {t: fmt(data.today), n: data.rounds});
-}
-function renderTest(){
-  const ok = !!adminState;
-  $('#testLogin').hidden = ok; $('#testPanel').hidden = !ok;
-  if (!ok) return;
-  const cur = adminState.next_mod || 'auto';
-  const opts = [['auto', esc(t('adm.random')), esc(t('adm.random.d')), DICE_ICON]].concat(MOD_KEYS.map(k => [k, esc(modName(k)), esc(t('adm.next.d')), MODS[k].icon]));
-  $('#testMods').innerHTML = opts.map(([k, n, d, ic]) => `<button class="test-opt" data-k="${k}" aria-pressed="${k === cur}"><span class="mi">${ic}</span><span><b>${n}</b><span>${d}</span></span></button>`).join('');
-  $('#testFast').setAttribute('aria-checked', String(!!adminState.fast));
-}
-$('#testClose').addEventListener('click', () => { $('#testSheet').hidden = true; });
-$('#testSheet').addEventListener('click', e => { if (e.target.id === 'testSheet') $('#testSheet').hidden = true; });
-$('#testLoginBtn').addEventListener('click', () => { adminCode = $('#testCode').value.trim(); adminCall('state'); });
-$('#testMods').addEventListener('click', e => { const b = e.target.closest('[data-k]'); if (b) adminCall('set_mod', {mod: b.dataset.k === 'auto' ? null : b.dataset.k}); });
-$('#testFast').addEventListener('click', () => adminCall('set_fast', {fast: !(adminState && adminState.fast)}));
-$('#testBots').addEventListener('click', () => adminCall('bots', {count: 3}));
-$('#testSkip').addEventListener('click', () => adminCall('skip'));
-
 /* ---------- DOM renders ---------- */
 function setChip(html){ $('#arenaChip').innerHTML = html; }
 function swatch(p){ return `<i class="sw" style="background-color:${p.color};background-image:url(${p.tileUrl})"></i>`; }
@@ -1992,9 +1946,9 @@ function renderPlayers(){
     const done = phase === 'result';
     const win = done && round.winner === p;
     const sub = done
-      ? `<span class="pct">${pct(p.start)}</span><span class="was">· ${esc(win ? t('pl.won') : t('pl.out', {n: p.outCut}))}</span>`
+      ? `<span class="pct">${pct(p.start)}</span><span class="was">· ${esc(win ? t('pl.won') : p.smaller ? t('pl.smaller') : t('pl.out', {n: p.outCut}))}</span>`
       : p.out
-      ? `<span class="pct">0%</span><span class="was">· ${esc(t('pl.out', {n: p.outCut}))}</span>`
+      ? `<span class="pct">0%</span><span class="was">· ${esc(p.smaller ? t('pl.smaller') : t('pl.out', {n: p.outCut}))}</span>`
       : `<span class="pct">${pct(live)}</span>${!preRound() ? `<span class="was">· ${esc(t('pl.start', {p: pct(p.start)}))}</span>` : ''}`;
     const fresh = phase === 'betting' && performance.now() - p.born < 350;
     return `<li class="pl${p.me ? ' is-me' : ''}${p.out ? ' is-out' : ''}${win ? ' is-win' : ''}${fresh ? ' is-new' : ''}">
@@ -2079,12 +2033,16 @@ async function verifyRound(id, tamper){
     out.push(m === r.mod ? {ok: true, text: t('v.mod', {m: modName(m)})}
       : {ok: false, text: t('v.modbad', {a: modName(m), b: modName(r.mod)})});
   } else out.push({ok: true, text: t('v.modtest', {m: modName(r.mod)})});
-  const sim = computeRound(bets, r.seed_hash, seed, r.entropy, r.mod_forced ? r.mod : null);
+  const sim = computeRound(bets, r.seed_hash, seed, r.entropy, r.mod_forced ? r.mod : null, (r.result && r.result.v) || 1);
   const nm = uid => uid === myId ? t('you') : (profiles.get(uid) ? profiles.get(uid).name : t('player'));
   const same = sim.winner === r.winner_id && sim.cuts === r.cuts;
   out.push({ok: same, text: same
     ? t('v.replay', {cuts: cutsTxt(sim.cuts), w: nm(sim.winner)})
     : t('v.replaybad', {cuts: cutsTxt(sim.cuts), w: nm(sim.winner), rc: r.cuts, rw: nm(r.winner_id)})});
+  if (same && sim.end === 'limit'){
+    const ch = sim.result.steps[sim.result.steps.length - 1].chances;
+    out.push({ok: true, text: t('v.limit', {n: sim.cuts, w: nm(sim.winner), p: pct(ch[sim.winner] || 0)})});
+  }
   const pot = r2(bets.reduce((s, b) => s + Number(b.amount), 0));
   if (pot !== Number(r.pot)) out.push({ok: false, text: t('v.potbad', {a: fmt(pot), b: fmt(r.pot)})});
   else if (r.fee == null) out.push({ok: true, text: t(r.room === 'fun' ? 'v.potfun' : 'v.potold', {pot: fmt(pot)})});
@@ -2581,6 +2539,12 @@ function drawCutting(){
     drawStartFlash(t);
     return;
   }
+  if (st === 'verdict'){
+    const w = round.winner, k = clamp(t * 3, 0, 1);
+    drawRegion(round.piece, {glow: w ? (w.me ? GREEN : '#ffffff') : null, scale: 1 + .015 * Math.sin(clamp(t, 0, 1) * Math.PI * 2)});
+    ctx.fillStyle = `rgba(4,5,4,${.35 * k})`; ctx.fillRect(0, 0, W, H);
+    return;
+  }
   if (st === 'aim'){ drawRegion(cut.region0); drawBlades(cut.region0, bladeGeom(easeOut(t)), 'aim'); return; }
   if (st === 'lock'){ drawRegion(cut.region0); drawBlades(cut.region0, bladeGeom(1), 'lock', 1 - t * .3); return; }
   const lift = i => pl.kind === 'circle' && i === 0;   // the disc rises instead of sliding
@@ -2712,7 +2676,7 @@ function frame(ts){
 /* drop what is on screen and rebuild it from the server's data on the next frame */
 function resync(){
   cut = null; round = null; players = []; tree = null; curId = null; phase = 'boot'; cutClock = 0; silent = false;
-  $('#result').hidden = true;
+  $('#result').hidden = true; $('#verdictPlate').hidden = true;
 }
 function tick(ts){
   const ms = last ? ts - last : 0, dt = Math.min(.05, ms / 1000);
@@ -2751,6 +2715,9 @@ Object.assign(I18N.en, {
   'adm.audit': 'balance {b} · ledger {l} · deposits {d}/{ld} · bets {bt}/{lbt} · wins {w}/{lw} · withdrawn {wd}/{lwd} · chain {c}',
   'adm.from': 'from', 'adm.comment': 'comment', 'adm.refresh': 'Refresh',
   'adm.invmatch': 'Amount matches an expired deposit invoice; player ID filled in.',
+  'vd.title': 'Cut limit', 'vd.text': '{n} cuts done: the biggest territory takes the pot',
+  'chip.verdict': '<b>{n} cuts</b> · the biggest territory wins', 'pl.smaller': 'smaller territory at the limit',
+  'res.bylimit': 'biggest territory after {n} cuts', 'v.limit': 'The round reached {n} cuts, so the biggest territory won ({w}, {p}).',
   'dep.connect': 'Connect wallet', 'dep.payx': 'Pay {x} Gram', 'dep.wallet': 'Wallet', 'dep.disconnect': 'Disconnect',
   'dep.testnet': 'This wallet is on the TON testnet. Switch it to mainnet and connect again.',
   'dep.info': 'Payments go through TON Connect: pick your wallet, confirm the payment, and the Gram are credited automatically once the network confirms it, usually within a minute. Minimum {m} Gram.',
@@ -2766,6 +2733,9 @@ Object.assign(I18N.ru, {
   'adm.audit': 'баланс {b} · журнал {l} · пополнения {d}/{ld} · ставки {bt}/{lbt} · выигрыши {w}/{lw} · выводы {wd}/{lwd} · цепочка {c}',
   'adm.from': 'от', 'adm.comment': 'комментарий', 'adm.refresh': 'Обновить',
   'adm.invmatch': 'Сумма совпадает с просроченным счётом на пополнение, ID игрока подставлен.',
+  'vd.title': 'Лимит разрезов', 'vd.text': 'Сделано {n} разрезов: пул забирает самая большая территория',
+  'chip.verdict': '<b>{n} разрезов</b> · побеждает самая большая территория', 'pl.smaller': 'меньшая территория на лимите',
+  'res.bylimit': 'самая большая территория после {n} разрезов', 'v.limit': 'Раунд дошёл до {n} разрезов, поэтому победила самая большая территория ({w}, {p}).',
   'dep.connect': 'Подключить кошелёк', 'dep.payx': 'Оплатить {x} Gram', 'dep.wallet': 'Кошелёк', 'dep.disconnect': 'Отключить',
   'dep.testnet': 'Этот кошелёк в тестовой сети TON. Переключите его на основную сеть и подключите снова.',
   'dep.info': 'Оплата через TON Connect: выберите кошелёк, подтвердите платёж, и Gram зачислятся автоматически, когда сеть подтвердит перевод, обычно в течение минуты. Минимум {m} Gram.',
@@ -2966,6 +2936,24 @@ const shortAddr = a => a && a.length > 14 ? a.slice(0, 6) + '…' + a.slice(-6) 
 const ST_CLS = {credited: 'ok', assigned: 'ok', paid: 'ok', ignored: 'warn', unmatched: 'warn', pending: 'warn', flagged: 'warn', rejected: 'bad', cancelled: 'bad'};
 const IC_IN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v13M6.5 12.5 12 18l5.5-5.5"/></svg>';
 const IC_OUT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V6M6.5 11.5 12 6l5.5 5.5"/></svg>';
+/* a paid withdrawal links to its transaction (stored as base64 hash, possibly followed by a note) */
+function txLink(w){
+  if (w.status !== 'paid' || !w.tx) return '';
+  const m = /^[A-Za-z0-9+/=_-]{43,44}/.exec(String(w.tx)); if (!m) return '';
+  let hx = ''; try { hx = Array.from(atob(m[0].replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0).toString(16).padStart(2, '0')).join(''); } catch(e){ return ''; }
+  return ` · <a href="https://tonviewer.com/transaction/${hx}" target="_blank" rel="noopener" style="color:#5cc2f5">tx</a>`;
+}
+let payoutsAt = 0;
+/* nudges the server to send pending withdrawals (it throttles and checks everything itself) */
+function kickPayouts(){
+  if (!myId || Date.now() - payoutsAt < 20000) return;
+  payoutsAt = Date.now();
+  sb.functions.invoke('game', {body: {action: 'payouts'}}).then(() => { if (tab === 'profile') setTimeout(loadProfile, 1500); }).catch(() => {});
+}
+setInterval(() => {
+  const pending = ((walletInfo && walletInfo.withdrawals) || []).some(w => w.status === 'pending');
+  if (pending || Math.random() < .25) kickPayouts();
+}, 30000);
 function renderProfile(){
   $('#pfAva').innerHTML = myAvatar ? `<img src="${esc(myAvatar)}" alt="" referrerpolicy="no-referrer">` : esc(initials(myName));
   $('#pfName').textContent = myName || '—';
@@ -2980,7 +2968,7 @@ function renderProfile(){
   $('#pfSupport').href = supportLink();
   const ops = [];
   for (const d of (walletInfo && walletInfo.deposits) || []) ops.push({at: d.at, html: `<li><span class="op-ic in">${IC_IN}</span><div class="op-main"><b>${esc(t('pr.dep'))}</b><span>${esc(dateTxt(d.at))}</span></div><div class="op-amt">+${fmt(d.amount)}<span class="st ${ST_CLS[d.status] || ''}">${esc(t('st.' + d.status))}</span></div></li>`});
-  for (const w of (walletInfo && walletInfo.withdrawals) || []) ops.push({at: w.at, html: `<li><span class="op-ic">${IC_OUT}</span><div class="op-main"><b>${esc(t('pr.wd', {id: w.id}))}</b><span>${esc(shortAddr(w.address))} · ${esc(dateTxt(w.at))}</span></div><div class="op-amt">−${fmt(w.amount)}<span class="st ${ST_CLS[w.status] || ''}">${esc(t('st.' + w.status))}</span></div></li>`});
+  for (const w of (walletInfo && walletInfo.withdrawals) || []) ops.push({at: w.at, html: `<li><span class="op-ic">${IC_OUT}</span><div class="op-main"><b>${esc(t('pr.wd', {id: w.id}))}</b><span>${esc(shortAddr(w.address))} · ${esc(dateTxt(w.at))}${txLink(w)}</span></div><div class="op-amt">−${fmt(w.amount)}<span class="st ${ST_CLS[w.status] || ''}">${esc(t('st.' + w.status))}</span></div></li>`});
   ops.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
   $('#pfOps').innerHTML = ops.length ? ops.slice(0, 15).map(o => o.html).join('') : `<li class="empty" style="display:block">${esc(t('pr.ops.none'))}</li>`;
 }
@@ -2994,10 +2982,7 @@ function setLang(l){
   if (phase === 'boot') setChip(t('connecting'));
   else if (phase === 'betting'){ setChip(bettingChip()); $('#fairEnt').textContent = t('fair.pending'); }
   if (tcUI) try { tcUI.uiOptions = {language: l}; } catch(e){}
-  if (adminState) renderTest();
-  if (money) renderMoney();
 }
-$('#btnAdmin').addEventListener('click', () => { closeSheet('setSheet'); openAdmin(); });
 
 /* ---------- deposit: always through TON Connect (Telegram's rule for Mini Apps).
    The server reserves an exact amount (the chosen sum plus a unique tail of a few thousandths) and TON Connect also
@@ -3170,97 +3155,13 @@ $('#wdSend').addEventListener('click', async () => {
     $('#wdAmt').value = ''; sizeAmt($('#wdAmt')); renderWdFee();
   } else sheetMsg(msg, esc(t('wd.flagged', {id: data.id})) + supportA(), 'bad');
   loadProfile();
+  payoutsAt = 0; kickPayouts();
 });
 $('#btnWithdraw').addEventListener('click', openWithdraw);
-
-/* ---------- owner tools: withdrawals, unmatched deposits ---------- */
-let money = null;
-function openAdmin(){ openSheet('testSheet'); $('#testCode').value = adminCode; renderTest(); if (adminCode && !adminState) adminCall('state'); else if (adminState) loadMoney(); }
-async function loadMoney(){
-  const {data, error} = await sb.rpc('admin_money', {p_code: adminCode});
-  if (error || !data) return;
-  money = data; renderMoney();
-}
-function armed(b){
-  if (b.dataset.armed === '1') return true;
-  b.dataset.armed = '1'; const was = b.textContent; b.textContent = t('adm.sure');
-  setTimeout(() => { b.dataset.armed = ''; b.textContent = was; }, 3000);
-  return false;
-}
-function renderMoney(){
-  const T = money.totals || {};
-  $('#admTotals').textContent = t('adm.totals', {b: fmt(T.balances || 0), d: fmt(T.deposited || 0), p: fmt(T.paid_out || 0), q: fmt(T.pending || 0), f: fmt(T.fees || 0), w: fmt(T.wd_fees || 0)});
-  const wds = money.withdrawals || [];
-  $('#admWd').innerHTML = !wds.length ? `<div class="adm-totals">${esc(t('adm.wd.none'))}</div>` : wds.map(w => {
-    const a = w.audit_now || {}, ok = !!a.ok, deps = w.deposits || [];
-    const depSum = r2(deps.reduce((s, d) => s + Number(d.amount), 0));
-    const aud = t('adm.audit', {b: fmt(a.balance || 0), l: fmt(a.ledger_sum || 0), d: fmt(a.deposits || 0), ld: fmt(a.ledger_deposits || 0), bt: fmt(a.bets || 0), lbt: fmt(a.ledger_bets || 0),
-      w: fmt(a.wins || 0), lw: fmt(a.ledger_wins || 0), wd: fmt(a.withdrawn || 0), lwd: fmt(a.ledger_withdrawn || 0), c: a.chain_ok ? '✓' : '✗'});
-    const btns = w.status === 'pending'
-      ? `<input id="tx-${w.id}" placeholder="${esc(t('adm.txph'))}" autocomplete="off"><div class="adm-btns"><button data-act="recheck" data-id="${w.id}">${esc(t('adm.recheck'))}</button><button class="primary" data-act="paid" data-id="${w.id}">${esc(t('adm.paid'))}</button><button class="danger" data-act="reject" data-id="${w.id}">${esc(t('adm.reject'))}</button></div>`
-      : `<div class="adm-btns"><button data-act="recheck" data-id="${w.id}">${esc(t('adm.recheck'))}</button><button data-act="approve" data-id="${w.id}">${esc(t('adm.approve'))}</button><button class="danger" data-act="reject" data-id="${w.id}">${esc(t('adm.cancel'))}</button></div>`;
-    return `<div class="adm-card${ok ? '' : ' bad'}">
-      <div class="row"><b>#${w.id} · ${esc(w.name || '')}${w.username ? ' @' + esc(w.username) : ''}</b><b class="num">${fmt(w.payout != null ? w.payout : w.amount)} Gram</b></div>
-      <div class="meta">${esc(t('adm.payout', {a: fmt(w.amount), f: fmt(w.fee || 0), p: fmt(w.payout != null ? w.payout : w.amount)}))}</div>
-      <div class="row"><code>${esc(w.address)}</code><button class="copy-btn" data-copy-text="${esc(w.address)}">${esc(t('copy'))}</button></div>
-      <div class="meta"><span class="st ${ST_CLS[w.status] || ''}">${esc(t('st.' + w.status))}</span> <span class="st ${ok ? 'ok' : 'bad'}">${esc(t(ok ? 'adm.audit.ok' : 'adm.audit.bad'))}</span> · ${esc(dateTxt(w.created_at))} · ${esc(t('adm.deps', {n: deps.length, x: fmt(depSum)}))}</div>
-      <div class="meta">${esc(aud)}</div>
-      <div class="meta" id="rc-${w.id}"></div>
-      ${btns}
-    </div>`;
-  }).join('');
-  const um = money.unmatched || [];
-  $('#admUnm').innerHTML = !um.length ? `<div class="adm-totals">${esc(t('adm.unmatched.none'))}</div>` : um.map((d, i) => `<div class="adm-card">
-      <div class="row"><b class="num">${(Number(d.nano) / 1e9).toFixed(4)} Gram</b><span class="meta">${esc(dateTxt(d.at))}</span></div>
-      <div class="meta">${esc(t('adm.from'))} <code>${esc(d.from)}</code> · ${esc(t('adm.comment'))}: <code>${esc(d.comment || '—')}</code></div>
-      <code>${esc(d.hash)}</code>
-      ${d.invoice_user ? `<div class="meta">${esc(t('adm.invmatch'))}</div>` : ''}
-      <input id="uid-${i}" placeholder="${esc(t('adm.uid'))}" autocomplete="off" value="${esc(d.invoice_user || '')}">
-      <div class="adm-btns"><button class="primary" data-act="assign" data-i="${i}">${esc(t('adm.assign'))}</button></div>
-    </div>`).join('');
-}
-async function adminRpc(fn, args){
-  $('#testState').textContent = t('adm.sending');
-  const {data, error} = await sb.rpc(fn, Object.assign({p_code: adminCode}, args));
-  $('#testState').textContent = error ? t('adm.error', {m: error.message}) : t('adm.done');
-  await loadMoney();
-  return !error && data;
-}
-document.addEventListener('click', async e => {
-  const b = e.target.closest('#admWd [data-act], #admUnm [data-act]'); if (!b || b.disabled) return;
-  const act = b.dataset.act;
-  if (act === 'recheck'){
-    const w = (money.withdrawals || []).find(x => String(x.id) === b.dataset.id); if (!w) return;
-    const hashes = (w.deposits || []).map(d => d.hash), box = $('#rc-' + w.id);
-    if (!hashes.length){ box.textContent = t('adm.recheck.none'); return; }
-    box.textContent = t('adm.checking'); b.disabled = true;
-    try {
-      const {data} = await sb.functions.invoke('game', {body: {action: 'admin', code: adminCode, op: 'recheck', hashes}});
-      const res = (data && data.recheck) || {}, bad = hashes.filter(h => res[h] !== true).length;
-      box.innerHTML = bad ? `<span class="st bad">${esc(t('adm.recheck.bad', {n: bad}))}</span>` : `<span class="st ok">${esc(t('adm.recheck.ok', {n: hashes.length}))}</span>`;
-    } catch(err){ box.textContent = t('adm.error', {m: err.message || err}); }
-    b.disabled = false;
-    return;
-  }
-  if (!armed(b)) return;
-  b.disabled = true;
-  if (act === 'paid'){
-    const tx = ($('#tx-' + b.dataset.id) || {}).value || '';
-    if (!tx.trim()){ $('#tx-' + b.dataset.id).focus(); b.disabled = false; return; }
-    await adminRpc('admin_withdrawal', {p_id: Number(b.dataset.id), p_action: 'paid', p_tx: tx.trim(), p_note: null});
-  } else if (act === 'reject' || act === 'approve'){
-    await adminRpc('admin_withdrawal', {p_id: Number(b.dataset.id), p_action: act, p_tx: null, p_note: null});
-  } else if (act === 'assign'){
-    const d = (money.unmatched || [])[Number(b.dataset.i)], uid = (($('#uid-' + b.dataset.i) || {}).value || '').trim();
-    if (!d || !/^[0-9a-f-]{36}$/i.test(uid)){ b.disabled = false; return; }
-    await adminRpc('admin_assign_deposit', {p_hash: d.hash, p_user: uid});
-  }
-  b.disabled = false;
-});
 const TG_ERRORS = {tg_required: 'tg.required', tg_bad_sign: 'tg.bad_sign', tg_expired: 'tg.expired', tg_no_user: 'tg.no_user', no_bot_token: 'tg.no_token'};
 const tgErr = m => TG_ERRORS[m] ? t(TG_ERRORS[m]) : m;
 /* every deploy bumps BUILD here and in version.json; open games notice and reload between rounds */
-const BUILD = '2026-10-26.4';
+const BUILD = '2026-10-26.5';
 let pendingVersion = null;
 async function checkVersion(){
   try {
