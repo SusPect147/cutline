@@ -247,13 +247,12 @@ async function scanDeposits() {
   if (e0) throw e0;
   if (!slot) return { ok: true, waited: true };                    // someone scanned a moment ago
   const house = await houseRaw();
-  const key = Deno.env.get("TONCENTER_API_KEY");
   const res: Record<string, number> = {};
   let stop = false;
   for (let page = 0; page < 2 && !stop; page++) {
-    if (page && !key) await sleep(1100);                           // public rate limit: 1 request per second
+    if (page && !tcHeaders()["X-API-Key"]) await sleep(1100);      // public rate limit: 1 request per second
     const url = `https://toncenter.com/api/v3/transactions?account=${house}&limit=50&offset=${page * 50}&sort=desc`;
-    const r = await tcFetch(url, { headers: key ? { "X-API-Key": key } : {} });
+    const r = await tcFetch(url, { headers: tcHeaders() });
     if (!r.ok) return { ok: false, error: "chain_unavailable" };
     const txs = (await r.json()).transactions || [];
     for (const tx of txs) {
@@ -282,8 +281,9 @@ async function scanDeposits() {
    its comment "CUTLINE payout #id" is seen on chain. If the 60 s passed and the seqno did not move, the transfer
    provably never happened and it is tried again; anything unclear is put on hold for the owner. */
 const TC2 = "https://toncenter.com/api/v2";
+let badKey = false;       // toncenter rejected TONCENTER_API_KEY: carry on without it (and say so in the logs)
 function tcHeaders(json = false) {
-  const key = Deno.env.get("TONCENTER_API_KEY");
+  const key = badKey ? "" : (Deno.env.get("TONCENTER_API_KEY") || "").trim();
   const h: Record<string, string> = key ? { "X-API-Key": key } : {};
   if (json) h["Content-Type"] = "application/json";
   return h;
@@ -292,7 +292,13 @@ function tcHeaders(json = false) {
 // on "429 Too Many Requests" wait and try again
 async function tcFetch(url: string, init: RequestInit = {}) {
   for (let i = 0; ; i++) {
-    const r = await fetch(url, { ...init, signal: AbortSignal.timeout(10000) });
+    let r = await fetch(url, { ...init, signal: AbortSignal.timeout(10000) });
+    const h = new Headers(init.headers || {});
+    if (r.status === 401 && h.has("X-API-Key")) {
+      console.error("TONCENTER_API_KEY rejected by toncenter, continuing without it");
+      badKey = true; h.delete("X-API-Key"); init = { ...init, headers: h };
+      r = await fetch(url, { ...init, signal: AbortSignal.timeout(10000) });
+    }
     if (r.status !== 429 || i >= 5) return r;
     await sleep(1200 + i * 600);
   }
