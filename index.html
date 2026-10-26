@@ -837,7 +837,7 @@ body.on-profile .dock,body.on-profile #gameView{display:none!important}
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script src="core.js?v=2026-10-26.5"></script>
+<script src="core.js?v=2026-10-26.6"></script>
 <script>
 'use strict';
 (function(){
@@ -3094,7 +3094,7 @@ $('#depPay').addEventListener('click', async () => {
     sheetMsg($('#depMsg'), '');
     const messages = [{address: walletInfo.address, amount: String(inv.nano)}];
     if (walletInfo.code) messages[0].payload = commentBoc(walletInfo.code);
-    await tcUI.sendTransaction({validUntil: Math.floor(Date.now() / 1000) + 600, messages});
+    await tcUI.sendTransaction({validUntil: Math.floor(Date.now() / 1000) + 240, messages});
     sheetMsg($('#depMsg'), esc(t('dep.sent')), 'ok');
     depStatus(t('dep.checking'), '');
     setTimeout(() => checkDeposit(true), 7000); setTimeout(() => checkDeposit(false), 20000);
@@ -3161,7 +3161,7 @@ $('#btnWithdraw').addEventListener('click', openWithdraw);
 const TG_ERRORS = {tg_required: 'tg.required', tg_bad_sign: 'tg.bad_sign', tg_expired: 'tg.expired', tg_no_user: 'tg.no_user', no_bot_token: 'tg.no_token'};
 const tgErr = m => TG_ERRORS[m] ? t(TG_ERRORS[m]) : m;
 /* every deploy bumps BUILD here and in version.json; open games notice and reload between rounds */
-const BUILD = '2026-10-26.5';
+const BUILD = '2026-10-26.6';
 let pendingVersion = null;
 async function checkVersion(){
   try {
