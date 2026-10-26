@@ -253,7 +253,7 @@ async function scanDeposits() {
   for (let page = 0; page < 2 && !stop; page++) {
     if (page && !key) await sleep(1100);                           // public rate limit: 1 request per second
     const url = `https://toncenter.com/api/v3/transactions?account=${house}&limit=50&offset=${page * 50}&sort=desc`;
-    const r = await fetch(url, { headers: key ? { "X-API-Key": key } : {}, signal: AbortSignal.timeout(8000) });
+    const r = await tcFetch(url, { headers: key ? { "X-API-Key": key } : {} });
     if (!r.ok) return { ok: false, error: "chain_unavailable" };
     const txs = (await r.json()).transactions || [];
     for (const tx of txs) {
@@ -288,17 +288,37 @@ function tcHeaders(json = false) {
   if (json) h["Content-Type"] = "application/json";
   return h;
 }
-async function tcGet(method: string, params: Record<string, string>) {
-  const r = await fetch(`${TC2}/${method}?${new URLSearchParams(params)}`, { headers: tcHeaders(), signal: AbortSignal.timeout(10000) });
-  const j = await r.json();
-  if (!j.ok) throw new Error(`toncenter_${method}`);
-  return j.result;
+// toncenter without an API key allows ~1 request per second per IP (shared by every call of this function):
+// on "429 Too Many Requests" wait and try again
+async function tcFetch(url: string, init: RequestInit = {}) {
+  for (let i = 0; ; i++) {
+    const r = await fetch(url, { ...init, signal: AbortSignal.timeout(10000) });
+    if (r.status !== 429 || i >= 5) return r;
+    await sleep(1200 + i * 600);
+  }
 }
-async function tcPost(method: string, body: unknown) {
-  const r = await fetch(`${TC2}/${method}`, { method: "POST", headers: tcHeaders(true), body: JSON.stringify(body), signal: AbortSignal.timeout(10000) });
+async function tcGet(method: string, params: Record<string, string>) {
+  const r = await tcFetch(`${TC2}/${method}?${new URLSearchParams(params)}`, { headers: tcHeaders() });
   const j = await r.json();
   if (!j.ok) throw new Error(`toncenter_${method}: ${j.error || r.status}`);
   return j.result;
+}
+async function tcPost(method: string, body: unknown) {
+  const r = await tcFetch(`${TC2}/${method}`, { method: "POST", headers: tcHeaders(true), body: JSON.stringify(body) });
+  const j = await r.json();
+  if (!j.ok) throw new Error(`toncenter_${method}: ${j.error || r.status}`);
+  return j.result;
+}
+// the signed message goes to toncenter, and to tonapi as a second route; sending it twice is harmless
+// (the wallet executes a given seqno once)
+async function broadcast(boc: string) {
+  let ok = false;
+  try { await tcPost("sendBoc", { boc }); ok = true; } catch (e) { console.error("sendBoc toncenter", e); }
+  try {
+    const r = await fetch("https://tonapi.io/v2/blockchain/message", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ boc }), signal: AbortSignal.timeout(10000) });
+    if (r.ok) ok = true; else console.error("sendBoc tonapi", r.status, await r.text().catch(() => ""));
+  } catch (e) { console.error("sendBoc tonapi", e); }
+  if (!ok) throw new Error("broadcast_failed");
 }
 // deno-lint-ignore no-explicit-any
 let payWallet: any = null;
@@ -324,7 +344,7 @@ async function walletSeqno(addr: string) {
 const toRaw = (a: string) => Address.parse(a).toRawString().toLowerCase();
 // our transfer for request #id, seen on chain: same receiver, same amount, our comment, executed successfully
 async function findPayoutTx(id: number, to: string, nano: string, wallet: string) {
-  const r = await fetch(`https://toncenter.com/api/v3/transactions?account=${wallet}&limit=40&sort=desc`, { headers: tcHeaders(), signal: AbortSignal.timeout(10000) });
+  const r = await tcFetch(`https://toncenter.com/api/v3/transactions?account=${wallet}&limit=40&sort=desc`, { headers: tcHeaders() });
   if (!r.ok) return null;
   const txs = (await r.json()).transactions || [];
   for (const tx of txs) {
@@ -397,6 +417,6 @@ async function payouts() {
     messages: [internal({ to, value: nano, bounce: false, body: `CUTLINE payout #${nx.id}` })],
   });
   const ext = beginCell().store(storeMessage(external({ to: w.c.address, body }))).endCell();
-  await tcPost("sendBoc", { boc: ext.toBoc().toString("base64") });
+  await broadcast(ext.toBoc().toString("base64"));
   return { ok: true, sent: nx.id };
 }
