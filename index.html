@@ -12,7 +12,7 @@
 :root{
   color-scheme: dark;
   --bg:#060706;
-  --bg-dot:rgba(225,240,228,.11);
+  --bg-dot:rgba(225,240,228,.035);
   --surface:#0d0f0d;
   --surface-2:#131613;
   --surface-3:#1d211d;
@@ -412,7 +412,7 @@ button:disabled{cursor:not-allowed}
 /* ---------- loading screen: a glowing blade slices the logo, the halves part, a ring spins around it ---------- */
 #splash{position:fixed;inset:0;z-index:100;background:#060706;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;overflow:hidden;transition:opacity .5s ease,visibility .5s}
 #splash.out{opacity:0;visibility:hidden}
-#splash::before{content:"";position:absolute;inset:-10%;background-image:radial-gradient(rgba(225,240,228,.14) 1px,transparent 1.4px);background-size:22px 22px;-webkit-mask:radial-gradient(circle at 50% 44%,#000 0,transparent 62%);mask:radial-gradient(circle at 50% 44%,#000 0,transparent 62%);animation:spDrift 9s linear infinite}
+#splash::before{content:"";position:absolute;inset:-10%;background-image:radial-gradient(rgba(225,240,228,.05) 1px,transparent 1.4px);background-size:22px 22px;-webkit-mask:radial-gradient(circle at 50% 44%,#000 0,transparent 62%);mask:radial-gradient(circle at 50% 44%,#000 0,transparent 62%);animation:spDrift 9s linear infinite}
 #splash::after{content:"";position:absolute;left:50%;top:44%;width:420px;height:420px;margin:-210px 0 0 -210px;border-radius:50%;background:radial-gradient(closest-side,rgba(52,226,122,.2),rgba(52,226,122,.05) 55%,transparent);animation:spGlow 2.4s ease-in-out infinite;pointer-events:none}
 @keyframes spDrift{to{transform:translate(22px,22px)}}
 @keyframes spGlow{0%,100%{opacity:.55;transform:scale(.92)}50%{opacity:1;transform:scale(1.05)}}
@@ -456,7 +456,7 @@ body.on-profile .dock,body.on-profile #gameView{display:none!important}
 .nav-btn[aria-current="page"] .ni-accent{stroke:var(--green)}
 .nav-btn .ni-fill{fill:none;transition:fill .25s}
 .nav-btn[aria-current="page"] .ni-fill{fill:rgba(52,226,122,.22)}
-.nav-lens{position:absolute;top:4px;bottom:4px;left:4px;width:calc((100% - 16px) / 3);border-radius:18px;z-index:0;pointer-events:none;transition:transform .5s cubic-bezier(.3,1.4,.5,1)}
+.nav-lens{position:absolute;top:4px;bottom:4px;left:0;width:0;box-sizing:border-box;border-radius:18px;z-index:0;pointer-events:none;transition:transform .5s cubic-bezier(.3,1.4,.5,1)}
 .room-tag{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:3px 7px;border-radius:6px;background:var(--green);color:var(--green-ink);white-space:nowrap}
 .room-tag.fun{background:var(--surface-3);color:var(--fg);border:1px solid var(--line-strong)}
 .status-bar .sb-text{white-space:normal;line-height:1.35}
@@ -468,8 +468,7 @@ body.on-profile .dock,body.on-profile #gameView{display:none!important}
 .pf-top{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:40px}
 .pf-top h1{margin:0;font-size:20px;font-weight:800;letter-spacing:-.01em}
 .pf-head{display:flex;flex-direction:column;align-items:center;gap:6px;padding:6px 0 4px;text-align:center}
-.pf-ava{width:92px;height:92px;border-radius:50%;padding:3px;background:conic-gradient(from 210deg,var(--green),#eafff1,var(--green) 60%,rgba(52,226,122,.25),var(--green));box-shadow:0 10px 36px rgba(52,226,122,.22)}
-.pf-ava span{display:grid;place-items:center;width:100%;height:100%;border-radius:50%;overflow:hidden;background:#0a0b0a;border:3px solid var(--bg);font-family:var(--font-num);font-weight:800;font-size:26px}
+.pf-ava{width:84px;height:84px;border-radius:50%;overflow:hidden;display:grid;place-items:center;background:var(--surface-3);border:1px solid var(--line-strong);font-family:var(--font-num);font-weight:800;font-size:24px;color:var(--fg)}
 .pf-ava img{width:100%;height:100%;object-fit:cover;display:block}
 .pf-name{font-size:19px;font-weight:800;margin-top:4px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pf-user{font-size:13px;color:var(--muted);font-weight:600}
@@ -567,6 +566,10 @@ body.on-profile .dock,body.on-profile #gameView{display:none!important}
 .pf-idrow .copy-btn{height:26px;padding:0 9px;font-size:11px}
 .adm-card input{box-sizing:border-box}
 .nav-lens{background:radial-gradient(130% 150% at 50% -25%,rgba(255,255,255,.2),rgba(255,255,255,.05) 55%,rgba(52,226,122,.12));border:1px solid rgba(255,255,255,.18);box-shadow:inset 0 1px 1px rgba(255,255,255,.35),inset 0 -5px 12px rgba(52,226,122,.16)}
+.mrow .dep-exp{font-size:11.5px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--muted)}
+.info-box{margin-top:10px;display:flex;gap:10px;align-items:flex-start;padding:11px 13px;border-radius:14px;background:var(--surface-2);border:1px solid var(--line);color:#c9d0ca;font-size:12.5px;line-height:1.45}
+.info-box svg{width:18px;height:18px;flex:none;margin-top:1px;color:var(--green)}
+.copy-btn:disabled{opacity:.4}
 </style>
 </head><body>
 <div id="splash" aria-hidden="true">
@@ -673,7 +676,7 @@ body.on-profile .dock,body.on-profile #gameView{display:none!important}
     </button>
   </header>
   <div class="pf-head">
-    <span class="pf-ava"><span id="pfAva">?</span></span>
+    <span class="pf-ava" id="pfAva">?</span>
     <span class="pf-name" id="pfName">—</span>
     <span class="pf-user" id="pfUser"></span>
     <div class="pf-idrow"><code id="pfId"></code><button class="copy-btn" data-copy="pfId" data-i18n="copy">Copy</button></div>
@@ -771,9 +774,9 @@ body.on-profile .dock,body.on-profile #gameView{display:none!important}
     </div>
     <p class="sheet-msg" id="depMsg"></p>
     <div class="sec-cap" data-i18n="dep.manual">Or send manually</div>
+    <div class="mrow"><div><small data-i18n="dep.exact">Send exactly</small><code class="big" id="depExact">…</code><small class="dep-exp" id="depExp"></small></div><button class="copy-btn" id="depExactBtn" data-copy="depExact" data-i18n="copy">Copy</button></div>
     <div class="mrow"><div><small data-i18n="dep.address">Address</small><code id="depAddr">…</code></div><button class="copy-btn" data-copy="depAddr" data-i18n="copy">Copy</button></div>
-    <div class="mrow"><div><small data-i18n="dep.comment">Comment (required)</small><code class="big" id="depCode">…</code></div><button class="copy-btn" data-copy="depCode" data-i18n="copy">Copy</button></div>
-    <div class="warn-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/></svg><span data-i18n="dep.warn"></span></div>
+    <div class="info-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg><span data-i18n="dep.how"></span></div>
     <div class="status-bar" id="depStatus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg><span class="sb-text" id="depStatusText"></span><button class="sb-act" id="depCheck" data-i18n="dep.check">Check</button></div>
     <p class="topup-note" id="depInfo"></p>
   </div>
@@ -846,7 +849,7 @@ body.on-profile .dock,body.on-profile #gameView{display:none!important}
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script src="core.js?v=2026-10-26.1"></script>
+<script src="core.js?v=2026-10-26.2"></script>
 <script>
 'use strict';
 (function(){
@@ -1716,7 +1719,7 @@ function plural(n, one, few, many){
 
 /* ---------- player actions (all checked again on the server) ---------- */
 function note(msg, warn){ const n = $('#dockNote'); n.textContent = msg; n.classList.toggle('is-warn', !!warn); }
-const ERR_KEYS = ['no_funds', 'not_open', 'closed', 'round_full', 'bad_amount', 'faucet_used', 'auth_required', 'bad_address', 'min_withdraw', 'too_many_pending', 'tg_required'];
+const ERR_KEYS = ['no_funds', 'not_open', 'closed', 'round_full', 'bad_amount', 'faucet_used', 'auth_required', 'bad_address', 'min_withdraw', 'too_many_pending', 'too_many_invoices', 'tg_required'];
 function errText(e, rm){
   const m = String(e && e.message || e);
   for (const k of ERR_KEYS) if (m.includes(k)){
@@ -2739,18 +2742,35 @@ Object.assign(I18N.en, {
   'room.real': 'PvP · Gram', 'room.fun': 'ForFun', 'adm.sure': 'Tap again to confirm', 'adm.assign': 'Credit to player',
   'adm.uid': 'Player ID (from their profile)', 'adm.checking': 'Checking on chain…', 'adm.deps': 'Deposits: {n} · {x} Gram',
   'adm.audit': 'balance {b} · ledger {l} · deposits {d}/{ld} · bets {bt}/{lbt} · wins {w}/{lw} · withdrawn {wd}/{lwd} · chain {c}',
-  'adm.from': 'from', 'adm.comment': 'comment', 'adm.refresh': 'Refresh'
+  'adm.from': 'from', 'adm.comment': 'comment', 'adm.refresh': 'Refresh',
+  'adm.invmatch': 'Amount matches an expired deposit invoice; player ID filled in.',
+  'dep.exact': 'Send exactly', 'dep.valid': 'amount reserved for {t}', 'dep.making': 'Preparing your amount…',
+  'dep.how': 'No comment needed: the last digits of the amount identify your payment. Send exactly this amount; you get the round sum you chose.',
+  'dep.info': 'Minimum {m} Gram. Credited automatically once the network confirms the transfer, usually within a minute.',
+  'err.too_many_invoices': 'Too many deposit attempts. Try again in an hour.'
 });
 Object.assign(I18N.ru, {
   'room.real': 'PvP · Gram', 'room.fun': 'ForFun', 'adm.sure': 'Нажмите ещё раз', 'adm.assign': 'Зачислить игроку',
   'adm.uid': 'ID игрока (из его профиля)', 'adm.checking': 'Проверяем в блокчейне…', 'adm.deps': 'Пополнений: {n} · {x} Gram',
   'adm.audit': 'баланс {b} · журнал {l} · пополнения {d}/{ld} · ставки {bt}/{lbt} · выигрыши {w}/{lw} · выводы {wd}/{lwd} · цепочка {c}',
-  'adm.from': 'от', 'adm.comment': 'комментарий', 'adm.refresh': 'Обновить'
+  'adm.from': 'от', 'adm.comment': 'комментарий', 'adm.refresh': 'Обновить',
+  'adm.invmatch': 'Сумма совпадает с просроченным счётом на пополнение, ID игрока подставлен.',
+  'dep.exact': 'Отправьте ровно', 'dep.valid': 'сумма закреплена ещё {t}', 'dep.making': 'Готовим сумму…',
+  'dep.how': 'Комментарий не нужен: по последним цифрам суммы мы узнаём ваш перевод. Отправьте ровно эту сумму — зачислится выбранная вами круглая сумма.',
+  'dep.info': 'Минимум {m} Gram. Зачисляется автоматически, когда сеть подтвердит перевод, обычно в течение минуты.',
+  'err.too_many_invoices': 'Слишком много попыток пополнения. Попробуйте через час.'
 });
 
 /* ---------- sections: PvP (real Gram), ForFun (test money), Profile ---------- */
 const TABS = ['pvp', 'fun', 'profile'];
-function placeNavLens(){ $('#navLens').style.transform = `translateX(calc(${TABS.indexOf(tab)} * (100% + 4px)))`; }
+function placeNavLens(){
+  const lens = $('#navLens'), btn = document.querySelector(`.nav-btn[data-tab="${tab}"]`);
+  if (!lens || !btn || !btn.offsetWidth) return;
+  lens.style.width = btn.offsetWidth + 'px';
+  lens.style.transform = `translateX(${btn.offsetLeft}px)`;
+}
+window.addEventListener('resize', placeNavLens);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(placeNavLens);
 function setTab(next){
   if (next === tab) return;
   tab = next;
@@ -2953,34 +2973,66 @@ function setLang(l){
 }
 $('#btnAdmin').addEventListener('click', () => { closeSheet('setSheet'); openAdmin(); });
 
-/* ---------- deposit: player's own comment code, checked on chain by the server ---------- */
+/* ---------- deposit: no comment needed. The server reserves an exact amount (the chosen sum plus a unique tail
+   of a few thousandths) and matches the incoming transfer by it; TON Connect also attaches the player's code. ---------- */
 const DEP_QUICK = [1, 5, 10, 25, 50, 100];
-let depPoll = 0, depBase = 0, depChecking = false;
+let depPoll = 0, depBase = 0, depChecking = false, inv = null, invTimer = 0, invSeq = 0, invTick = 0;
 function depStatus(text, cls){ $('#depStatusText').textContent = text; $('#depStatus').className = 'status-bar' + (cls ? ' ' + cls : ''); }
+/* nanograms (string) → "10.004371" */
+const nanoTxt = n => { const s = String(n).padStart(10, '0'), w = s.slice(0, -9).replace(/^0+(?=\d)/, ''), f = s.slice(-9, -3); return w + '.' + f; };
+function depMin(){ return Number(walletInfo && walletInfo.min_deposit) || 0.1; }
+function renderInvoice(){
+  const ready = !!(inv && Date.parse(inv.expires_at) > Date.now());
+  $('#depExact').textContent = ready ? nanoTxt(inv.nano) : '…';
+  $('#depExactBtn').disabled = !ready;
+  $('#depPay').disabled = $('#depApp').disabled = !ready;
+  if (ready){
+    const left = Math.max(0, Date.parse(inv.expires_at) - Date.now()), mm = Math.floor(left / 60000), ss = Math.floor(left / 1000) % 60;
+    $('#depExp').textContent = t('dep.valid', {t: mm + ':' + String(ss).padStart(2, '0')});
+  } else $('#depExp').textContent = '';
+}
+async function makeInvoice(){
+  const v = parseAmt($('#depAmt').value), seq = ++invSeq;
+  if (!(v >= depMin()) || v > 100000){ inv = null; renderInvoice(); $('#depExp').textContent = t('dep.amount.bad', {m: fmt(depMin())}); return; }
+  if (inv && inv.base === v && Date.parse(inv.expires_at) - Date.now() > 5 * 60000){ renderInvoice(); return; }
+  inv = null; renderInvoice(); $('#depExp').textContent = t('dep.making');
+  const {data, error} = await sb.rpc('create_invoice', {p_amount: v});
+  if (seq !== invSeq) return;                                   // the amount changed meanwhile
+  if (error || !data){ $('#depExp').textContent = errText(error || 'busy', 'real'); return; }
+  inv = Object.assign({base: v}, data);
+  renderInvoice();
+}
 async function openDeposit(){
   openSheet('depSheet');
   sheetMsg($('#depMsg'), '');
   depStatus(t('dep.nothing'), '');
-  const inp = $('#depAmt'); sizeAmt(inp);
+  const inp = $('#depAmt'); if (!inp.value) inp.value = '10';
+  sizeAmt(inp);
   $('#depQuick').innerHTML = DEP_QUICK.map(v => `<button data-v="${v}" aria-pressed="${parseAmt(inp.value) === v}">${v}</button>`).join('');
   if (!walletInfo) await loadProfile();
-  const ok = !!(walletInfo && walletInfo.address && walletInfo.code);
+  const ok = !!(walletInfo && walletInfo.address);
   $('#depAddr').textContent = ok ? walletInfo.address : '…';
-  $('#depCode').textContent = ok ? walletInfo.code : '…';
-  $('#depPay').disabled = $('#depApp').disabled = !ok;
-  $('#depInfo').textContent = t('dep.info', {m: fmt(Number(walletInfo && walletInfo.min_deposit) || 0.1)});
-  if (!ok){ sheetMsg($('#depMsg'), esc(t('err.generic', {m: t('boot.noserver')})), 'bad'); return; }
+  $('#depInfo').textContent = t('dep.info', {m: fmt(depMin())});
+  if (!ok){ sheetMsg($('#depMsg'), esc(t('err.generic', {m: t('boot.noserver')})), 'bad'); renderInvoice(); return; }
+  makeInvoice();
   depBase = wallet.real;
-  clearInterval(depPoll);
+  clearInterval(depPoll); clearInterval(invTick);
   depPoll = setInterval(() => { if ($('#depSheet').hidden){ clearInterval(depPoll); return; } checkDeposit(true); }, 12000);
+  invTick = setInterval(() => {
+    if ($('#depSheet').hidden){ clearInterval(invTick); return; }
+    if (inv && Date.parse(inv.expires_at) - Date.now() < 60000) makeInvoice(); else renderInvoice();
+  }, 1000);
 }
-function depAmount(){
-  const v = parseAmt($('#depAmt').value), min = Number(walletInfo && walletInfo.min_deposit) || 0.1;
-  if (!(v >= min) || v > 1e6){ sheetMsg($('#depMsg'), esc(t('dep.amount.bad', {m: fmt(min)})), 'bad'); $('#depAmt').focus(); return 0; }
-  return v;
-}
-$('#depAmt').addEventListener('input', e => { sizeAmt(e.target); const v = parseAmt(e.target.value); document.querySelectorAll('#depQuick button').forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.v) === v))); });
-$('#depQuick').addEventListener('click', e => { const b = e.target.closest('[data-v]'); if (!b) return; const inp = $('#depAmt'); inp.value = b.dataset.v; inp.dispatchEvent(new Event('input')); });
+$('#depAmt').addEventListener('input', e => {
+  sizeAmt(e.target); const v = parseAmt(e.target.value);
+  document.querySelectorAll('#depQuick button').forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.v) === v)));
+  inv = null; renderInvoice(); invSeq++;
+  clearTimeout(invTimer); invTimer = setTimeout(makeInvoice, 700);
+});
+$('#depQuick').addEventListener('click', e => {
+  const b = e.target.closest('[data-v]'); if (!b) return; const inp = $('#depAmt'); inp.value = b.dataset.v; inp.dispatchEvent(new Event('input'));
+  clearTimeout(invTimer); makeInvoice();
+});
 async function checkDeposit(quiet){
   if (depChecking || !myId) return;
   depChecking = true;
@@ -2989,20 +3041,21 @@ async function checkDeposit(quiet){
   try { const {data} = await sb.functions.invoke('game', {body: {action: 'deposits'}}); res = data; } catch(e){}
   await loadProfile();
   const gained = r2(wallet.real - depBase);
-  if (gained > 0){ depStatus(t('dep.got', {x: fmt(gained)}), 'ok'); depBase = wallet.real; sfx.win(); }
+  if (gained > 0){ depStatus(t('dep.got', {x: fmt(gained)}), 'ok'); depBase = wallet.real; inv = null; invSeq++; makeInvoice(); sfx.win(); }
   else if (!quiet) depStatus(res && res.ok === false ? t('dep.busy') : t('dep.nothing'), '');
   depChecking = false;
 }
 $('#depCheck').addEventListener('click', () => checkDeposit(false));
 $('#depPay').addEventListener('click', async () => {
-  const amt = depAmount(); if (!amt) return;
+  if (!inv) return;
   const btn = $('#depPay'); btn.disabled = true;
   sheetMsg($('#depMsg'), esc(t('dep.loading')));
   try {
     const ui = await tcConnect();
     sheetMsg($('#depMsg'), '');
-    await ui.sendTransaction({validUntil: Math.floor(Date.now() / 1000) + 600,
-      messages: [{address: walletInfo.address, amount: toNano(amt), payload: commentBoc(walletInfo.code)}]});
+    const messages = [{address: walletInfo.address, amount: String(inv.nano)}];
+    if (walletInfo.code) messages[0].payload = commentBoc(walletInfo.code);   // a second way to recognise the payment; nothing to type
+    await ui.sendTransaction({validUntil: Math.floor(Date.now() / 1000) + 600, messages});
     sheetMsg($('#depMsg'), esc(t('dep.sent')), 'ok');
     depStatus(t('dep.checking'), '');
     setTimeout(() => checkDeposit(true), 7000); setTimeout(() => checkDeposit(false), 20000);
@@ -3010,11 +3063,11 @@ $('#depPay').addEventListener('click', async () => {
     const m = String(e && e.message || e);
     sheetMsg($('#depMsg'), esc(/cancel|reject|declin|closed/i.test(m) ? t('dep.cancelled') : t('err.generic', {m})), 'bad');
   }
-  btn.disabled = false;
+  btn.disabled = !inv;
 });
 $('#depApp').addEventListener('click', () => {
-  const amt = depAmount(); if (!amt) return;
-  openLink(`https://app.tonkeeper.com/transfer/${encodeURIComponent(walletInfo.address)}?amount=${toNano(amt)}&text=${encodeURIComponent(walletInfo.code)}`);
+  if (!inv) return;
+  openLink(`https://app.tonkeeper.com/transfer/${encodeURIComponent(walletInfo.address)}?amount=${inv.nano}${walletInfo.code ? '&text=' + encodeURIComponent(walletInfo.code) : ''}`);
   depStatus(t('dep.checking'), '');
   setTimeout(() => checkDeposit(true), 15000);
 });
@@ -3096,7 +3149,8 @@ function renderMoney(){
       <div class="row"><b class="num">${(Number(d.nano) / 1e9).toFixed(4)} Gram</b><span class="meta">${esc(dateTxt(d.at))}</span></div>
       <div class="meta">${esc(t('adm.from'))} <code>${esc(d.from)}</code> · ${esc(t('adm.comment'))}: <code>${esc(d.comment || '—')}</code></div>
       <code>${esc(d.hash)}</code>
-      <input id="uid-${i}" placeholder="${esc(t('adm.uid'))}" autocomplete="off">
+      ${d.invoice_user ? `<div class="meta">${esc(t('adm.invmatch'))}</div>` : ''}
+      <input id="uid-${i}" placeholder="${esc(t('adm.uid'))}" autocomplete="off" value="${esc(d.invoice_user || '')}">
       <div class="adm-btns"><button class="primary" data-act="assign" data-i="${i}">${esc(t('adm.assign'))}</button></div>
     </div>`).join('');
 }
@@ -3141,7 +3195,7 @@ document.addEventListener('click', async e => {
 const TG_ERRORS = {tg_required: 'tg.required', tg_bad_sign: 'tg.bad_sign', tg_expired: 'tg.expired', tg_no_user: 'tg.no_user', no_bot_token: 'tg.no_token'};
 const tgErr = m => TG_ERRORS[m] ? t(TG_ERRORS[m]) : m;
 /* every deploy bumps BUILD here and in version.json; open games notice and reload between rounds */
-const BUILD = '2026-10-26.1';
+const BUILD = '2026-10-26.2';
 let pendingVersion = null;
 async function checkVersion(){
   try {
