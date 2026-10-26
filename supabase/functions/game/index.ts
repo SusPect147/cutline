@@ -365,64 +365,90 @@ async function findPayoutTx(id: number, to: string, nano: string, wallet: string
   return null;
 }
 // a deposit we credited is still there, as a successful incoming transfer to the house wallet
+// (toncenter with our API key: 10 requests per second, so a player with many deposits is checked in a moment)
 async function depositOnChain(hash: string, house: string) {
-  const hx = toHex(Uint8Array.from(atob(hash), (ch) => ch.charCodeAt(0)));
-  const r = await fetch(`https://tonapi.io/v2/blockchain/transactions/${hx}`, { signal: AbortSignal.timeout(8000) }).catch(() => null);
+  const r = await tcFetch(`https://toncenter.com/api/v3/transactions?hash=${encodeURIComponent(hash)}&limit=1`, { headers: tcHeaders() }).catch(() => null);
   if (!r || !r.ok) return null;                     // unknown (network): try later, do not hold
-  const j = await r.json();
-  return j.success === true && j.aborted === false && low(j.account && j.account.address) === house &&
-    low(j.in_msg && j.in_msg.destination && j.in_msg.destination.address) === house && j.in_msg.bounced !== true;
+  const tx = ((await r.json()).transactions || [])[0];
+  if (!tx) return null;                             // not indexed right now: try later
+  const t = incoming(tx, house);
+  return !!t && t.hash === hash;
 }
+// One run at a time (a database lock, released at the end; it expires by itself if a run dies). A run keeps going
+// while there is work: it confirms transfers already sent, sends the next request, waits for it on chain and marks
+// it paid, then takes the next one. The database starts a run the moment a withdrawal is requested, and re-checks
+// every 15 s while anything is pending (migration 010), so players do not have to keep the app open.
+const RUN_MS = 85000, LOCK_S = 170;
 async function payouts() {
   if (!Deno.env.get("PAYOUT_MNEMONIC")) return { ok: false, error: "not_configured" };
-  const { data: slot, error: e0 } = await db.rpc("payout_slot", { p_gap_ms: 20000 });
+  const { data: got, error: e0 } = await db.rpc("payout_lock", { p_secs: LOCK_S });
   if (e0) throw e0;
-  if (!slot) return { ok: true, waited: true };
+  if (!got) return { ok: true, busy: true };
+  const run = payoutRun().finally(() => db.rpc("payout_unlock"));
+  // the caller (the database's 5 s nudge, or a player's app) may hang up: the run still finishes
+  // deno-lint-ignore no-explicit-any
+  (globalThis as any).EdgeRuntime?.waitUntil?.(run.catch(() => {}));
+  return await run;
+}
+async function payoutRun() {
+  const t0 = Date.now(), paid: number[] = [], sent: number[] = [];
   const w = await payoutWallet();
   const addr = w.c.address.toString({ bounceable: false });
-  const info = await tcGet("getAddressInformation", { address: addr });
-  // a wallet that never sent anything signs its first transfer without an expiry time; we only pay from an active
-  // wallet with seqno > 0, so every transfer we sign expires after 60 s
-  if (info.state !== "active") return { ok: false, error: "payout_wallet_not_active" };
-  const seqno = await walletSeqno(addr);
-  if (!(seqno > 0)) return { ok: false, error: "payout_wallet_not_active" };
+  while (Date.now() - t0 < RUN_MS) {
+    const info = await tcGet("getAddressInformation", { address: addr });
+    // a wallet that never sent anything signs its first transfer without an expiry time; we only pay from an active
+    // wallet with seqno > 0, so every transfer we sign expires after 60 s
+    if (info.state !== "active") return { ok: false, error: "payout_wallet_not_active", paid, sent };
+    const seqno = await walletSeqno(addr);
+    if (!(seqno > 0)) return { ok: false, error: "payout_wallet_not_active", paid, sent };
 
-  // 1. transfers already on their way
-  const { data: fl, error: e1 } = await db.rpc("payout_inflight");
-  if (e1) throw e1;
-  for (const f of fl || []) {
-    const hash = await findPayoutTx(f.id, toRaw(f.address), String(f.nano), w.raw);
-    if (hash) { await db.rpc("payout_done", { p_id: f.id, p_tx: hash }); continue; }
-    const age = Date.now() - Date.parse(f.sent_at);
-    if (age > 150000 && Number(f.seqno) > 0 && seqno === Number(f.seqno)) { await db.rpc("payout_reset", { p_id: f.id }); continue; }
-    if (age > 600000) { await db.rpc("payout_hold", { p_id: f.id, p_note: "auto: sent but not seen on chain, check by hand" }); continue; }
-    return { ok: true, waiting: f.id };              // one payout at a time
-  }
+    // 1. transfers already on their way
+    const { data: fl, error: e1 } = await db.rpc("payout_inflight");
+    if (e1) throw e1;
+    let waiting: number | null = null, waitAge = 0;
+    for (const f of fl || []) {
+      const hash = await findPayoutTx(f.id, toRaw(f.address), String(f.nano), w.raw);
+      if (hash) { await db.rpc("payout_done", { p_id: f.id, p_tx: hash }); paid.push(f.id); continue; }
+      const age = Date.now() - Date.parse(f.sent_at);
+      if (age > 150000 && Number(f.seqno) > 0 && seqno === Number(f.seqno)) { await db.rpc("payout_reset", { p_id: f.id }); continue; }
+      if (age > 600000) { await db.rpc("payout_hold", { p_id: f.id, p_note: "auto: sent but not seen on chain, check by hand" }); continue; }
+      waiting = f.id; waitAge = age; break;           // one payout at a time
+    }
+    if (waiting !== null) {
+      // a transfer normally lands in 5-15 s: keep looking for it in this run; later ones come back via the cron
+      if (waitAge > 75000 || Date.now() - t0 > RUN_MS - 5000) return { ok: true, waiting, paid, sent };
+      await sleep(2500);
+      continue;
+    }
 
-  // 2. the next request
-  const { data: nx, error: e2 } = await db.rpc("payout_next");
-  if (e2) throw e2;
-  if (!nx) return { ok: true, idle: true };
-  const house = await houseRaw();
-  for (const h of nx.deposits || []) {
-    const ok = await depositOnChain(String(h), house);
-    if (ok === null) return { ok: false, error: "chain_unavailable" };
-    if (!ok) { await db.rpc("payout_hold", { p_id: nx.id, p_note: `auto: deposit ${h} not confirmed on chain` }); return { ok: false, held: nx.id }; }
-    await sleep(300);
+    // 2. the next request
+    const { data: nx, error: e2 } = await db.rpc("payout_next");
+    if (e2) throw e2;
+    if (!nx) return { ok: true, idle: true, paid, sent };
+    const house = await houseRaw();
+    let held = false;
+    for (const h of nx.deposits || []) {
+      const ok = await depositOnChain(String(h), house);
+      if (ok === null) return { ok: false, error: "chain_unavailable", paid, sent };
+      if (!ok) { await db.rpc("payout_hold", { p_id: nx.id, p_note: `auto: deposit ${h} not confirmed on chain` }); held = true; break; }
+    }
+    if (held) continue;
+    let to: Address;
+    try { to = Address.parse(String(nx.address)); } catch { await db.rpc("payout_hold", { p_id: nx.id, p_note: "auto: bad address" }); continue; }
+    const nano = BigInt(nx.nano);
+    if (BigInt(info.balance) < nano + 60000000n) return { ok: false, error: "low_balance", paid, sent };   // keep ~0.06 for fees
+    const { data: claimed, error: e3 } = await db.rpc("payout_claim", { p_id: nx.id, p_seqno: seqno, p_wallet: w.raw });
+    if (e3) throw e3;
+    if (!claimed) return { ok: false, error: "not_claimed", paid, sent };
+    const body = w.c.createTransfer({
+      seqno, secretKey: w.key.secretKey, timeout: Math.floor(Date.now() / 1000) + 60,
+      sendMode: SendMode.PAY_GAS_SEPARATELY | SendMode.IGNORE_ERRORS,
+      messages: [internal({ to, value: nano, bounce: false, body: `CUTLINE payout #${nx.id}` })],
+    });
+    const ext = beginCell().store(storeMessage(external({ to: w.c.address, body }))).endCell();
+    await broadcast(ext.toBoc().toString("base64"));
+    sent.push(nx.id);
+    await sleep(4000);                                // then look for it on chain (step 1)
   }
-  let to: Address;
-  try { to = Address.parse(String(nx.address)); } catch { await db.rpc("payout_hold", { p_id: nx.id, p_note: "auto: bad address" }); return { ok: false, held: nx.id }; }
-  const nano = BigInt(nx.nano);
-  if (BigInt(info.balance) < nano + 60000000n) return { ok: false, error: "low_balance" };   // keep ~0.06 for fees
-  const { data: claimed, error: e3 } = await db.rpc("payout_claim", { p_id: nx.id, p_seqno: seqno, p_wallet: w.raw });
-  if (e3) throw e3;
-  if (!claimed) return { ok: false, error: "not_claimed" };
-  const body = w.c.createTransfer({
-    seqno, secretKey: w.key.secretKey, timeout: Math.floor(Date.now() / 1000) + 60,
-    sendMode: SendMode.PAY_GAS_SEPARATELY | SendMode.IGNORE_ERRORS,
-    messages: [internal({ to, value: nano, bounce: false, body: `CUTLINE payout #${nx.id}` })],
-  });
-  const ext = beginCell().store(storeMessage(external({ to: w.c.address, body }))).endCell();
-  await broadcast(ext.toBoc().toString("base64"));
-  return { ok: true, sent: nx.id };
+  return { ok: true, more: true, paid, sent };
 }
