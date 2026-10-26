@@ -456,7 +456,7 @@ body.on-profile .dock,body.on-profile #gameView{display:none!important}
 .nav-btn[aria-current="page"] .ni-accent{stroke:var(--green)}
 .nav-btn .ni-fill{fill:none;transition:fill .25s}
 .nav-btn[aria-current="page"] .ni-fill{fill:rgba(52,226,122,.22)}
-.nav-lens{position:absolute;top:4px;bottom:4px;left:0;width:0;box-sizing:border-box;border-radius:18px;z-index:0;pointer-events:none;transition:transform .5s cubic-bezier(.3,1.4,.5,1)}
+.nav-lens{position:absolute;top:4px;bottom:4px;left:0;width:0;box-sizing:border-box;border-radius:18px;z-index:0;pointer-events:none;transition:transform .42s cubic-bezier(.22,.8,.3,1),width .42s cubic-bezier(.22,.8,.3,1)}
 .room-tag{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:3px 7px;border-radius:6px;background:var(--green);color:var(--green-ink);white-space:nowrap}
 .room-tag.fun{background:var(--surface-3);color:var(--fg);border:1px solid var(--line-strong)}
 .status-bar .sb-text{white-space:normal;line-height:1.35}
@@ -570,6 +570,14 @@ body.on-profile .dock,body.on-profile #gameView{display:none!important}
 .info-box{margin-top:10px;display:flex;gap:10px;align-items:flex-start;padding:11px 13px;border-radius:14px;background:var(--surface-2);border:1px solid var(--line);color:#c9d0ca;font-size:12.5px;line-height:1.45}
 .info-box svg{width:18px;height:18px;flex:none;margin-top:1px;color:var(--green)}
 .copy-btn:disabled{opacity:.4}
+
+.amt-zone .dep-exp{font-size:12px;color:var(--muted);font-weight:600;text-align:center;min-height:1.2em}
+.wal-row{display:flex;align-items:center;gap:10px;padding:10px 10px 10px 12px;margin-bottom:10px;border-radius:14px;background:var(--surface-2);border:1px solid var(--green-line)}
+.wal-row div{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}
+.wal-row small{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.wal-row code{font-family:var(--font-num);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.link-btn{margin-top:8px;display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;color:var(--green-hi);padding:4px 2px}
+.link-btn svg{width:16px;height:16px}
 </style>
 </head><body>
 <div id="splash" aria-hidden="true">
@@ -763,20 +771,17 @@ body.on-profile .dock,body.on-profile #gameView{display:none!important}
   <div class="sheet topup-sheet money-sheet" role="dialog" aria-modal="true" data-i18n-aria="dep.title">
     <div class="grabber"></div>
     <div class="sheet-head"><h2 data-i18n="dep.title">Deposit Gram</h2><button data-close="depSheet" data-i18n="close">Close</button></div>
+    <div class="wal-row" id="depWal" hidden><span class="op-ic in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10h18"/><path d="M16 14.5h2"/></svg></span><div><small data-i18n="dep.wallet">Wallet</small><code id="depWalAddr"></code></div><button class="copy-btn" id="depDisc" data-i18n="dep.disconnect">Disconnect</button></div>
     <div class="amt-zone">
       <span class="amt-lbl" data-i18n="dep.amount">Amount</span>
-      <label class="amt-line" id="depLine"><span class="amt-mirror" id="depMirror"></span><input id="depAmt" type="text" inputmode="decimal" autocomplete="off" placeholder="0"><span class="amt-unit">Gram</span></label>
+      <label class="amt-line" id="depLine"><input id="depAmt" type="text" inputmode="decimal" autocomplete="off" placeholder="0"><span class="amt-unit">Gram</span></label>
+      <small class="dep-exp" id="depExp"></small>
     </div>
     <div class="quick6" id="depQuick"></div>
     <div class="pay-row">
-      <button class="btn-green" id="depPay"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10h18"/><path d="M16 14.5h2"/></svg><span data-i18n="dep.pay">Pay with wallet</span></button>
-      <button class="btn-dark" id="depApp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4 11 13"/><path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/></svg><span data-i18n="dep.app">Open wallet app</span></button>
+      <button class="btn-green" id="depPay"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10h18"/><path d="M16 14.5h2"/></svg><span id="depPayLbl">Connect wallet</span></button>
     </div>
     <p class="sheet-msg" id="depMsg"></p>
-    <div class="sec-cap" data-i18n="dep.manual">Or send manually</div>
-    <div class="mrow"><div><small data-i18n="dep.exact">Send exactly</small><code class="big" id="depExact">…</code><small class="dep-exp" id="depExp"></small></div><button class="copy-btn" id="depExactBtn" data-copy="depExact" data-i18n="copy">Copy</button></div>
-    <div class="mrow"><div><small data-i18n="dep.address">Address</small><code id="depAddr">…</code></div><button class="copy-btn" data-copy="depAddr" data-i18n="copy">Copy</button></div>
-    <div class="info-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg><span data-i18n="dep.how"></span></div>
     <div class="status-bar" id="depStatus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg><span class="sb-text" id="depStatusText"></span><button class="sb-act" id="depCheck" data-i18n="dep.check">Check</button></div>
     <p class="topup-note" id="depInfo"></p>
   </div>
@@ -791,9 +796,11 @@ body.on-profile .dock,body.on-profile #gameView{display:none!important}
       <span class="amt-lbl" data-i18n="wd.amount">Amount</span>
       <label class="amt-line" id="wdLine"><span class="amt-mirror" id="wdMirror"></span><input id="wdAmt" type="text" inputmode="decimal" autocomplete="off" placeholder="0"><span class="amt-unit">Gram</span></label>
       <button class="max-btn" id="wdMax" data-i18n="wd.max">Max</button>
+      <small class="dep-exp" id="wdFee"></small>
     </div>
     <div class="sec-cap" data-i18n="wd.address">Your TON wallet address</div>
     <div class="addr-input"><input id="wdAddr" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" data-i18n-ph="wd.ph" placeholder="UQ… or EQ…"></div>
+    <button class="link-btn" id="wdUseWallet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10h18"/></svg><span data-i18n="wd.fromwallet">Use my connected wallet</span></button>
     <button class="topup-go" id="wdSend"><span data-i18n="wd.send">Request withdrawal</span></button>
     <p class="sheet-msg" id="wdMsg"></p>
     <p class="topup-note" id="wdInfo"></p>
@@ -849,7 +856,7 @@ body.on-profile .dock,body.on-profile #gameView{display:none!important}
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script src="core.js?v=2026-10-26.2"></script>
+<script src="core.js?v=2026-10-26.3"></script>
 <script>
 'use strict';
 (function(){
@@ -956,7 +963,7 @@ const I18N = {
     'adm.sending': 'Sending…', 'adm.badcode': 'Wrong code.', 'adm.error': 'Error: {m}', 'adm.ok': 'Code accepted.', 'adm.done': 'Done.',
     'adm.earned': '{x} earned', 'adm.earned.sub': 'today {t} · rounds with commission: {n} · 2% (min 0.1), winner always ahead',
     'adm.random': 'Random', 'adm.random.d': 'as in the game', 'adm.next.d': 'next ForFun round',
-    'adm.money': 'Money', 'adm.totals': 'Player balances {b} · deposited {d} · paid out {p} · waiting {q} · fees {f}',
+    'adm.money': 'Money', 'adm.totals': 'Player balances {b} · deposited {d} · paid out {p} · waiting {q} · game fees {f} · withdrawal fees {w}',
     'adm.wd': 'Withdrawal requests', 'adm.wd.none': 'No open requests.', 'adm.audit.ok': 'Ledger matches', 'adm.audit.bad': 'Ledger DOES NOT match',
     'adm.recheck': 'Re-check deposits on chain', 'adm.recheck.ok': 'All {n} deposits confirmed on chain', 'adm.recheck.bad': '{n} deposit(s) NOT confirmed on chain',
     'adm.recheck.none': 'No deposits to check', 'adm.paid': 'Mark as paid', 'adm.txph': 'Payout transaction hash or link',
@@ -1076,7 +1083,7 @@ const I18N = {
     'adm.sending': 'Отправляем…', 'adm.badcode': 'Неверный код.', 'adm.error': 'Ошибка: {m}', 'adm.ok': 'Код принят.', 'adm.done': 'Готово.',
     'adm.earned': '{x} заработано', 'adm.earned.sub': 'сегодня {t} · раундов с комиссией: {n} · 2% (мин. 0.1), победитель всегда в плюсе',
     'adm.random': 'Случайный', 'adm.random.d': 'как в игре', 'adm.next.d': 'следующий раунд ForFun',
-    'adm.money': 'Деньги', 'adm.totals': 'Балансы игроков {b} · пополнено {d} · выплачено {p} · ждёт выплаты {q} · комиссия {f}',
+    'adm.money': 'Деньги', 'adm.totals': 'Балансы игроков {b} · пополнено {d} · выплачено {p} · ждёт выплаты {q} · комиссия игр {f} · комиссия выводов {w}',
     'adm.wd': 'Заявки на вывод', 'adm.wd.none': 'Открытых заявок нет.', 'adm.audit.ok': 'Баланс сходится', 'adm.audit.bad': 'Баланс НЕ сходится',
     'adm.recheck': 'Перепроверить пополнения в блокчейне', 'adm.recheck.ok': 'Все пополнения ({n}) подтверждены в блокчейне', 'adm.recheck.bad': 'Не подтверждено в блокчейне: {n}',
     'adm.recheck.none': 'Пополнений нет', 'adm.paid': 'Отметить выплаченным', 'adm.txph': 'Хеш или ссылка транзакции выплаты',
@@ -2744,9 +2751,13 @@ Object.assign(I18N.en, {
   'adm.audit': 'balance {b} · ledger {l} · deposits {d}/{ld} · bets {bt}/{lbt} · wins {w}/{lw} · withdrawn {wd}/{lwd} · chain {c}',
   'adm.from': 'from', 'adm.comment': 'comment', 'adm.refresh': 'Refresh',
   'adm.invmatch': 'Amount matches an expired deposit invoice; player ID filled in.',
+  'dep.connect': 'Connect wallet', 'dep.payx': 'Pay {x} Gram', 'dep.wallet': 'Wallet', 'dep.disconnect': 'Disconnect',
+  'dep.testnet': 'This wallet is on the TON testnet. Switch it to mainnet and connect again.',
+  'dep.info': 'Payments go through TON Connect: pick your wallet, confirm the payment, and the Gram are credited automatically once the network confirms it, usually within a minute. Minimum {m} Gram.',
+  'wd.fromwallet': 'Use my connected wallet', 'wd.fee': 'Fee {pct}%: {fee} Gram · you receive {get} Gram',
+  'adm.payout': 'requested {a} · fee {f} · send {p} Gram',
   'dep.exact': 'Send exactly', 'dep.valid': 'amount reserved for {t}', 'dep.making': 'Preparing your amount…',
   'dep.how': 'No comment needed: the last digits of the amount identify your payment. Send exactly this amount; you get the round sum you chose.',
-  'dep.info': 'Minimum {m} Gram. Credited automatically once the network confirms the transfer, usually within a minute.',
   'err.too_many_invoices': 'Too many deposit attempts. Try again in an hour.'
 });
 Object.assign(I18N.ru, {
@@ -2755,9 +2766,13 @@ Object.assign(I18N.ru, {
   'adm.audit': 'баланс {b} · журнал {l} · пополнения {d}/{ld} · ставки {bt}/{lbt} · выигрыши {w}/{lw} · выводы {wd}/{lwd} · цепочка {c}',
   'adm.from': 'от', 'adm.comment': 'комментарий', 'adm.refresh': 'Обновить',
   'adm.invmatch': 'Сумма совпадает с просроченным счётом на пополнение, ID игрока подставлен.',
+  'dep.connect': 'Подключить кошелёк', 'dep.payx': 'Оплатить {x} Gram', 'dep.wallet': 'Кошелёк', 'dep.disconnect': 'Отключить',
+  'dep.testnet': 'Этот кошелёк в тестовой сети TON. Переключите его на основную сеть и подключите снова.',
+  'dep.info': 'Оплата через TON Connect: выберите кошелёк, подтвердите платёж, и Gram зачислятся автоматически, когда сеть подтвердит перевод, обычно в течение минуты. Минимум {m} Gram.',
+  'wd.fromwallet': 'Взять адрес подключённого кошелька', 'wd.fee': 'Комиссия {pct}%: {fee} Gram · вы получите {get} Gram',
+  'adm.payout': 'запрошено {a} · комиссия {f} · отправить {p} Gram',
   'dep.exact': 'Отправьте ровно', 'dep.valid': 'сумма закреплена ещё {t}', 'dep.making': 'Готовим сумму…',
   'dep.how': 'Комментарий не нужен: по последним цифрам суммы мы узнаём ваш перевод. Отправьте ровно эту сумму — зачислится выбранная вами круглая сумма.',
-  'dep.info': 'Минимум {m} Gram. Зачисляется автоматически, когда сеть подтвердит перевод, обычно в течение минуты.',
   'err.too_many_invoices': 'Слишком много попыток пополнения. Попробуйте через час.'
 });
 
@@ -2899,7 +2914,8 @@ function tcLoad(){
     }
     tcUI = new window.TON_CONNECT_UI.TonConnectUI({
       manifestUrl: new URL('tonconnect-manifest.json', location.href).href,
-      language: lang, actionsConfiguration: {twaReturnUrl: `https://t.me/${BOT}`}
+      language: lang, actionsConfiguration: {twaReturnUrl: `https://t.me/${BOT}`},
+      uiPreferences: {theme: (window.TON_CONNECT_UI.THEME && window.TON_CONNECT_UI.THEME.DARK) || 'DARK'}
     });
     return tcUI;
   })().catch(e => { tcLoading = null; throw e; });
@@ -2973,23 +2989,40 @@ function setLang(l){
 }
 $('#btnAdmin').addEventListener('click', () => { closeSheet('setSheet'); openAdmin(); });
 
-/* ---------- deposit: no comment needed. The server reserves an exact amount (the chosen sum plus a unique tail
-   of a few thousandths) and matches the incoming transfer by it; TON Connect also attaches the player's code. ---------- */
+/* ---------- deposit: always through TON Connect (Telegram's rule for Mini Apps).
+   The server reserves an exact amount (the chosen sum plus a unique tail of a few thousandths) and TON Connect also
+   attaches the player's code, so the payment is recognised either way; the player never types anything. ---------- */
 const DEP_QUICK = [1, 5, 10, 25, 50, 100];
-let depPoll = 0, depBase = 0, depChecking = false, inv = null, invTimer = 0, invSeq = 0, invTick = 0;
+let depPoll = 0, depBase = 0, depChecking = false, inv = null, invTimer = 0, invSeq = 0, invTick = 0, tcHooked = false;
 function depStatus(text, cls){ $('#depStatusText').textContent = text; $('#depStatus').className = 'status-bar' + (cls ? ' ' + cls : ''); }
-/* nanograms (string) → "10.004371" */
-const nanoTxt = n => { const s = String(n).padStart(10, '0'), w = s.slice(0, -9).replace(/^0+(?=\d)/, ''), f = s.slice(-9, -3); return w + '.' + f; };
 function depMin(){ return Number(walletInfo && walletInfo.min_deposit) || 0.1; }
+/* raw "0:abc…" → user-friendly non-bounceable "UQ…" */
+function toFriendly(raw){
+  const m = /^(-?\d+):([0-9a-fA-F]{64})$/.exec(String(raw || '')); if (!m) return '';
+  const by = new Uint8Array(36); by[0] = 0x51; by[1] = m[1] === '-1' ? 0xff : 0;
+  for (let i = 0; i < 32; i++) by[2 + i] = parseInt(m[2].substr(i * 2, 2), 16);
+  const c = crc16(by.subarray(0, 34)); by[34] = c >> 8; by[35] = c & 255;
+  let s = ''; for (const x of by) s += String.fromCharCode(x);
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_');
+}
+const tcAccount = () => (tcUI && tcUI.connected && tcUI.account) || null;
+const tcMainnet = acc => !acc || String(acc.chain) !== '-3';
+function renderDepWallet(){
+  const acc = tcAccount();
+  $('#depWal').hidden = !acc;
+  if (acc) $('#depWalAddr').textContent = shortAddr(toFriendly(acc.address));
+  const ready = !!(inv && Date.parse(inv.expires_at) > Date.now());
+  $('#depPayLbl').textContent = acc ? t('dep.payx', {x: ready ? fmt(inv.base) : (fmt(parseAmt($('#depAmt').value) || 0))}) : t('dep.connect');
+  $('#depPay').disabled = acc ? !ready : false;
+}
+function hookTc(ui){
+  if (tcHooked) return; tcHooked = true;
+  ui.onStatusChange(() => { renderDepWallet(); });
+}
 function renderInvoice(){
   const ready = !!(inv && Date.parse(inv.expires_at) > Date.now());
-  $('#depExact').textContent = ready ? nanoTxt(inv.nano) : '…';
-  $('#depExactBtn').disabled = !ready;
-  $('#depPay').disabled = $('#depApp').disabled = !ready;
-  if (ready){
-    const left = Math.max(0, Date.parse(inv.expires_at) - Date.now()), mm = Math.floor(left / 60000), ss = Math.floor(left / 1000) % 60;
-    $('#depExp').textContent = t('dep.valid', {t: mm + ':' + String(ss).padStart(2, '0')});
-  } else $('#depExp').textContent = '';
+  if (ready) $('#depExp').textContent = '';
+  renderDepWallet();
 }
 async function makeInvoice(){
   const v = parseAmt($('#depAmt').value), seq = ++invSeq;
@@ -3009,11 +3042,12 @@ async function openDeposit(){
   const inp = $('#depAmt'); if (!inp.value) inp.value = '10';
   sizeAmt(inp);
   $('#depQuick').innerHTML = DEP_QUICK.map(v => `<button data-v="${v}" aria-pressed="${parseAmt(inp.value) === v}">${v}</button>`).join('');
-  if (!walletInfo) await loadProfile();
-  const ok = !!(walletInfo && walletInfo.address);
-  $('#depAddr').textContent = ok ? walletInfo.address : '…';
   $('#depInfo').textContent = t('dep.info', {m: fmt(depMin())});
-  if (!ok){ sheetMsg($('#depMsg'), esc(t('err.generic', {m: t('boot.noserver')})), 'bad'); renderInvoice(); return; }
+  renderDepWallet();
+  tcLoad().then(async ui => { hookTc(ui); try { if (ui.connectionRestored) await ui.connectionRestored; } catch(e){} renderDepWallet(); }).catch(() => {});
+  if (!walletInfo) await loadProfile();
+  if (!(walletInfo && walletInfo.address)){ sheetMsg($('#depMsg'), esc(t('err.generic', {m: t('boot.noserver')})), 'bad'); return; }
+  $('#depInfo').textContent = t('dep.info', {m: fmt(depMin())});
   makeInvoice();
   depBase = wallet.real;
   clearInterval(depPoll); clearInterval(invTick);
@@ -3047,30 +3081,34 @@ async function checkDeposit(quiet){
 }
 $('#depCheck').addEventListener('click', () => checkDeposit(false));
 $('#depPay').addEventListener('click', async () => {
-  if (!inv) return;
   const btn = $('#depPay'); btn.disabled = true;
-  sheetMsg($('#depMsg'), esc(t('dep.loading')));
   try {
-    const ui = await tcConnect();
+    if (!tcAccount()){
+      sheetMsg($('#depMsg'), esc(t('dep.loading')));
+      let ui;
+      try { ui = await tcConnect(); }                            // the TON Connect wallet picker
+      catch(e){ sheetMsg($('#depMsg'), /cancelled/.test(String(e && e.message)) ? '' : esc(t('err.generic', {m: e.message || e})), 'bad'); return; }
+      hookTc(ui);
+      sheetMsg($('#depMsg'), '');
+      if (!tcMainnet(ui.account)) sheetMsg($('#depMsg'), esc(t('dep.testnet')), 'bad');
+      renderDepWallet();
+      return;
+    }
+    if (!tcMainnet(tcAccount())){ sheetMsg($('#depMsg'), esc(t('dep.testnet')), 'bad'); return; }
+    if (!inv) return;
     sheetMsg($('#depMsg'), '');
     const messages = [{address: walletInfo.address, amount: String(inv.nano)}];
-    if (walletInfo.code) messages[0].payload = commentBoc(walletInfo.code);   // a second way to recognise the payment; nothing to type
-    await ui.sendTransaction({validUntil: Math.floor(Date.now() / 1000) + 600, messages});
+    if (walletInfo.code) messages[0].payload = commentBoc(walletInfo.code);
+    await tcUI.sendTransaction({validUntil: Math.floor(Date.now() / 1000) + 600, messages});
     sheetMsg($('#depMsg'), esc(t('dep.sent')), 'ok');
     depStatus(t('dep.checking'), '');
     setTimeout(() => checkDeposit(true), 7000); setTimeout(() => checkDeposit(false), 20000);
   } catch(e){
     const m = String(e && e.message || e);
     sheetMsg($('#depMsg'), esc(/cancel|reject|declin|closed/i.test(m) ? t('dep.cancelled') : t('err.generic', {m})), 'bad');
-  }
-  btn.disabled = !inv;
+  } finally { renderDepWallet(); }
 });
-$('#depApp').addEventListener('click', () => {
-  if (!inv) return;
-  openLink(`https://app.tonkeeper.com/transfer/${encodeURIComponent(walletInfo.address)}?amount=${inv.nano}${walletInfo.code ? '&text=' + encodeURIComponent(walletInfo.code) : ''}`);
-  depStatus(t('dep.checking'), '');
-  setTimeout(() => checkDeposit(true), 15000);
-});
+$('#depDisc').addEventListener('click', async () => { try { if (tcUI) await tcUI.disconnect(); } catch(e){} renderDepWallet(); });
 $('#btnDeposit').addEventListener('click', openDeposit);
 
 /* ---------- withdrawal: a request; the server reconciles the balance first ---------- */
@@ -3082,10 +3120,26 @@ async function openWithdraw(){
   renderProfileBal();
   sizeAmt($('#wdAmt'));
   $('#wdInfo').textContent = t('wd.info', {m: fmt(Number(walletInfo && walletInfo.min_withdraw) || 1)});
+  renderWdFee();
+  tcLoad().then(async ui => { hookTc(ui); try { if (ui.connectionRestored) await ui.connectionRestored; } catch(e){} if (!$('#wdAddr').value && tcAccount() && tcMainnet(tcAccount())) $('#wdAddr').value = toFriendly(tcAccount().address); }).catch(() => {});
 }
-$('#wdAmt').addEventListener('input', e => sizeAmt(e.target));
+const wdPct = () => Number(walletInfo && walletInfo.wd_fee_pct != null ? walletInfo.wd_fee_pct : 1);
+const wdFeeOf = v => Math.max(r2(v * wdPct() / 100), 0.01);
+function renderWdFee(){
+  const v = parseAmt($('#wdAmt').value), el = $('#wdFee');
+  if (!(v > 0)){ el.textContent = t('wd.fee', {pct: wdPct(), fee: '—', get: '—'}); return; }
+  const f = wdFeeOf(v); el.textContent = t('wd.fee', {pct: wdPct(), fee: fmt(f), get: fmt(Math.max(0, r2(v - f)))});
+}
+$('#wdAmt').addEventListener('input', e => { sizeAmt(e.target); renderWdFee(); });
+$('#wdUseWallet').addEventListener('click', async () => {
+  try {
+    const ui = tcAccount() ? tcUI : await tcConnect(); hookTc(ui);
+    if (!tcMainnet(ui.account)) return sheetMsg($('#wdMsg'), esc(t('dep.testnet')), 'bad');
+    $('#wdAddr').value = toFriendly(ui.account.address); $('#wdAddr').classList.remove('bad');
+  } catch(e){ sheetMsg($('#wdMsg'), esc(t('dep.cancelled')), 'bad'); }
+});
 $('#wdAddr').addEventListener('input', e => e.target.classList.remove('bad'));
-$('#wdMax').addEventListener('click', () => { const inp = $('#wdAmt'); inp.value = fmt(Math.floor(wallet.real * 100 + 1e-6) / 100); sizeAmt(inp); });
+$('#wdMax').addEventListener('click', () => { const inp = $('#wdAmt'); inp.value = fmt(Math.floor(wallet.real * 100 + 1e-6) / 100); sizeAmt(inp); renderWdFee(); });
 let wdBusy = false;
 $('#wdSend').addEventListener('click', async () => {
   if (wdBusy) return;
@@ -3101,9 +3155,9 @@ $('#wdSend').addEventListener('click', async () => {
   wdBusy = false; $('#wdSend').disabled = false;
   if (error) return sheetMsg(msg, esc(errText(error, 'real')), 'bad');
   if (data.status === 'pending'){
-    sheetMsg(msg, esc(t('wd.ok', {id: data.id, amt: fmt(amt)})), 'ok');
+    sheetMsg(msg, esc(t('wd.ok', {id: data.id, amt: fmt(data.payout != null ? Number(data.payout) : amt)})), 'ok');
     if (data.balance != null) setWallet({balance: data.balance});
-    $('#wdAmt').value = ''; sizeAmt($('#wdAmt'));
+    $('#wdAmt').value = ''; sizeAmt($('#wdAmt')); renderWdFee();
   } else sheetMsg(msg, esc(t('wd.flagged', {id: data.id})) + supportA(), 'bad');
   loadProfile();
 });
@@ -3125,7 +3179,7 @@ function armed(b){
 }
 function renderMoney(){
   const T = money.totals || {};
-  $('#admTotals').textContent = t('adm.totals', {b: fmt(T.balances || 0), d: fmt(T.deposited || 0), p: fmt(T.paid_out || 0), q: fmt(T.pending || 0), f: fmt(T.fees || 0)});
+  $('#admTotals').textContent = t('adm.totals', {b: fmt(T.balances || 0), d: fmt(T.deposited || 0), p: fmt(T.paid_out || 0), q: fmt(T.pending || 0), f: fmt(T.fees || 0), w: fmt(T.wd_fees || 0)});
   const wds = money.withdrawals || [];
   $('#admWd').innerHTML = !wds.length ? `<div class="adm-totals">${esc(t('adm.wd.none'))}</div>` : wds.map(w => {
     const a = w.audit_now || {}, ok = !!a.ok, deps = w.deposits || [];
@@ -3136,7 +3190,8 @@ function renderMoney(){
       ? `<input id="tx-${w.id}" placeholder="${esc(t('adm.txph'))}" autocomplete="off"><div class="adm-btns"><button data-act="recheck" data-id="${w.id}">${esc(t('adm.recheck'))}</button><button class="primary" data-act="paid" data-id="${w.id}">${esc(t('adm.paid'))}</button><button class="danger" data-act="reject" data-id="${w.id}">${esc(t('adm.reject'))}</button></div>`
       : `<div class="adm-btns"><button data-act="recheck" data-id="${w.id}">${esc(t('adm.recheck'))}</button><button data-act="approve" data-id="${w.id}">${esc(t('adm.approve'))}</button><button class="danger" data-act="reject" data-id="${w.id}">${esc(t('adm.cancel'))}</button></div>`;
     return `<div class="adm-card${ok ? '' : ' bad'}">
-      <div class="row"><b>#${w.id} · ${esc(w.name || '')}${w.username ? ' @' + esc(w.username) : ''}</b><b class="num">${fmt(w.amount)} Gram</b></div>
+      <div class="row"><b>#${w.id} · ${esc(w.name || '')}${w.username ? ' @' + esc(w.username) : ''}</b><b class="num">${fmt(w.payout != null ? w.payout : w.amount)} Gram</b></div>
+      <div class="meta">${esc(t('adm.payout', {a: fmt(w.amount), f: fmt(w.fee || 0), p: fmt(w.payout != null ? w.payout : w.amount)}))}</div>
       <div class="row"><code>${esc(w.address)}</code><button class="copy-btn" data-copy-text="${esc(w.address)}">${esc(t('copy'))}</button></div>
       <div class="meta"><span class="st ${ST_CLS[w.status] || ''}">${esc(t('st.' + w.status))}</span> <span class="st ${ok ? 'ok' : 'bad'}">${esc(t(ok ? 'adm.audit.ok' : 'adm.audit.bad'))}</span> · ${esc(dateTxt(w.created_at))} · ${esc(t('adm.deps', {n: deps.length, x: fmt(depSum)}))}</div>
       <div class="meta">${esc(aud)}</div>
@@ -3195,7 +3250,7 @@ document.addEventListener('click', async e => {
 const TG_ERRORS = {tg_required: 'tg.required', tg_bad_sign: 'tg.bad_sign', tg_expired: 'tg.expired', tg_no_user: 'tg.no_user', no_bot_token: 'tg.no_token'};
 const tgErr = m => TG_ERRORS[m] ? t(TG_ERRORS[m]) : m;
 /* every deploy bumps BUILD here and in version.json; open games notice and reload between rounds */
-const BUILD = '2026-10-26.2';
+const BUILD = '2026-10-26.3';
 let pendingVersion = null;
 async function checkVersion(){
   try {
