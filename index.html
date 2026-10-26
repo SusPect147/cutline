@@ -856,7 +856,7 @@ body.on-profile .dock,body.on-profile #gameView{display:none!important}
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script src="core.js?v=2026-10-26.3"></script>
+<script src="core.js?v=2026-10-26.4"></script>
 <script>
 'use strict';
 (function(){
@@ -2912,8 +2912,18 @@ function tcLoad(){
       try { await loadScript('https://unpkg.com/@tonconnect/ui@2.4.4/dist/tonconnect-ui.min.js'); }
       catch(e){ await loadScript('https://cdn.jsdelivr.net/npm/@tonconnect/ui@2.4.4/dist/tonconnect-ui.min.js'); }
     }
+    /* The game shares its web origin (suspect147.github.io) with other apps, and TON Connect keeps its session in
+       localStorage under fixed keys — so a wallet connected in another app showed up here. CUTLINE keeps its own,
+       separately named session instead. */
+    const P = 'cutline.tc.';
+    const storage = {
+      async setItem(k, v){ try { localStorage.setItem(P + k, v); } catch(e){} },
+      async getItem(k){ try { return localStorage.getItem(P + k); } catch(e){ return null; } },
+      async removeItem(k){ try { localStorage.removeItem(P + k); } catch(e){} }
+    };
+    const connector = new window.TON_CONNECT_UI.TonConnect({manifestUrl: new URL('tonconnect-manifest.json', location.href).href, storage});
     tcUI = new window.TON_CONNECT_UI.TonConnectUI({
-      manifestUrl: new URL('tonconnect-manifest.json', location.href).href,
+      connector,
       language: lang, actionsConfiguration: {twaReturnUrl: `https://t.me/${BOT}`},
       uiPreferences: {theme: (window.TON_CONNECT_UI.THEME && window.TON_CONNECT_UI.THEME.DARK) || 'DARK'}
     });
@@ -3250,7 +3260,7 @@ document.addEventListener('click', async e => {
 const TG_ERRORS = {tg_required: 'tg.required', tg_bad_sign: 'tg.bad_sign', tg_expired: 'tg.expired', tg_no_user: 'tg.no_user', no_bot_token: 'tg.no_token'};
 const tgErr = m => TG_ERRORS[m] ? t(TG_ERRORS[m]) : m;
 /* every deploy bumps BUILD here and in version.json; open games notice and reload between rounds */
-const BUILD = '2026-10-26.3';
+const BUILD = '2026-10-26.4';
 let pendingVersion = null;
 async function checkVersion(){
   try {
