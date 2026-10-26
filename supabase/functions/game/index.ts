@@ -4,12 +4,15 @@
 //   status   – is the bot token configured (returns the bot's username only)
 //   advance  – settle any round whose betting has closed, in both rooms (idempotent; anyone may trigger it)
 //   deposits – scan the house wallet for incoming Gram and credit them (idempotent; anyone may trigger it)
-//   admin    – test tools for ForFun and on-chain re-checks of deposits, only with the admin code
+//   payouts  – send pending withdrawals from the payout wallet (PAYOUT_MNEMONIC secret; one at a time, see below)
 // The round itself is computed from public data (bets, seed hash) + the secret seed + fresh entropy,
 // using exactly the same core.js the browser uses to replay and verify it.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 import "./core.js";
+import { WalletContractV3R2, WalletContractV4, WalletContractV5R1 } from "npm:@ton/ton@16.2.4";
+import { Address, SendMode, beginCell, external, internal, storeMessage } from "npm:@ton/core@0.63.1";
+import { mnemonicToPrivateKey, mnemonicValidate } from "npm:@ton/crypto@3.3.0";
 
 // deno-lint-ignore no-explicit-any
 const C = (globalThis as any).CutlineCore;
@@ -37,7 +40,7 @@ Deno.serve(async (req) => {
       case "status": return json(await status());
       case "advance": return json(await advance());
       case "deposits": return json(await scanDeposits());
-      case "admin": return json(await admin(body));
+      case "payouts": return json(await payouts());
       default: return json({ error: "unknown_action" }, 400);
     }
   } catch (e) {
@@ -271,52 +274,129 @@ async function scanDeposits() {
   return { ok: true, ...res };
 }
 
-const BOT_STAKES = [0.1, 0.2, 0.5, 1, 2, 3, 5, 10, 20];
-async function admin(body: Record<string, unknown>) {
-  const code = String(body.code || "");
-  const { data: ok, error } = await db.rpc("admin_check", { p_code: code });
+/* ---------- payouts: pending withdrawals are sent from the payout wallet ----------
+   The wallet's recovery phrase is the PAYOUT_MNEMONIC secret (never in the code or the database). It must belong to
+   app_config.wallet.payout_address, or to the house wallet when that is not set; otherwise nothing is sent.
+   Exactly once: the wallet seqno is stored with the request BEFORE the transfer goes out, a TON wallet executes a
+   given seqno only once, and the transfer is valid for 60 s. A request is marked paid only when a transaction with
+   its comment "CUTLINE payout #id" is seen on chain. If the 60 s passed and the seqno did not move, the transfer
+   provably never happened and it is tried again; anything unclear is put on hold for the owner. */
+const TC2 = "https://toncenter.com/api/v2";
+function tcHeaders(json = false) {
+  const key = Deno.env.get("TONCENTER_API_KEY");
+  const h: Record<string, string> = key ? { "X-API-Key": key } : {};
+  if (json) h["Content-Type"] = "application/json";
+  return h;
+}
+async function tcGet(method: string, params: Record<string, string>) {
+  const r = await fetch(`${TC2}/${method}?${new URLSearchParams(params)}`, { headers: tcHeaders(), signal: AbortSignal.timeout(10000) });
+  const j = await r.json();
+  if (!j.ok) throw new Error(`toncenter_${method}`);
+  return j.result;
+}
+async function tcPost(method: string, body: unknown) {
+  const r = await fetch(`${TC2}/${method}`, { method: "POST", headers: tcHeaders(true), body: JSON.stringify(body), signal: AbortSignal.timeout(10000) });
+  const j = await r.json();
+  if (!j.ok) throw new Error(`toncenter_${method}: ${j.error || r.status}`);
+  return j.result;
+}
+// deno-lint-ignore no-explicit-any
+let payWallet: any = null;
+async function payoutWallet() {
+  if (payWallet) return payWallet;
+  const words = (Deno.env.get("PAYOUT_MNEMONIC") || "").trim().toLowerCase().split(/\s+/);
+  if (words.length !== 24 || !(await mnemonicValidate(words))) throw new Error("payout_mnemonic_invalid");
+  const key = await mnemonicToPrivateKey(words);
+  const { data, error } = await db.from("app_config").select("value").eq("key", "wallet").single();
   if (error) throw error;
-  if (!ok) return { ok: false, error: "bad_code" };
-  const op = String(body.op || "state");
-  if (op === "set_mod") {
-    const mod = body.mod && C.MODS[String(body.mod)] ? String(body.mod) : null;
-    const { error: e } = await db.rpc("admin_set", { p_key: "next_mod", p_value: mod });
-    if (e) throw e;
-  } else if (op === "set_fast") {
-    const { error: e } = await db.rpc("admin_timing", { p_fast: !!body.fast });
-    if (e) throw e;
-  } else if (op === "bots") {
-    const n = Math.max(1, Math.min(12, Number(body.count) || 1));
-    const { data: bots } = await db.from("profiles").select("id").eq("is_bot", true);
-    const { data: open } = await db.from("rounds").select("id").eq("status", "betting").eq("room", "fun").order("id", { ascending: false }).limit(1).maybeSingle();
-    const { data: inRound } = open ? await db.from("bets").select("user_id").eq("round_id", open.id) : { data: [] };
-    const taken = new Set((inRound || []).map((b) => b.user_id));
-    const free = (bots || []).map((b) => b.id).filter((id) => !taken.has(id)).sort(() => Math.random() - 0.5).slice(0, n);
-    for (const id of free) {
-      const amt = BOT_STAKES[Math.floor(Math.random() * BOT_STAKES.length)];
-      const { error: e } = await db.rpc("admin_bot_bet", { p_bot: id, p_amount: amt });
-      if (e) throw e;
-    }
-  } else if (op === "recheck") {
-    // re-verify deposits on chain before paying a withdrawal out
-    const hashes = (Array.isArray(body.hashes) ? body.hashes : []).slice(0, 40).map(String);
-    const house = await houseRaw();
-    const out: Record<string, boolean> = {};
-    for (const h of hashes) {
-      const hex = toHex(Uint8Array.from(atob(h), (ch) => ch.charCodeAt(0)));
-      const r = await fetch(`https://tonapi.io/v2/blockchain/transactions/${hex}`, { signal: AbortSignal.timeout(8000) }).catch(() => null);
-      const j = r && r.ok ? await r.json() : null;
-      out[h] = !!j && j.success === true && j.aborted === false && low(j.account && j.account.address) === house &&
-        low(j.in_msg && j.in_msg.destination && j.in_msg.destination.address) === house && j.in_msg.bounced !== true;
-      if (hashes.length > 1) await sleep(350);
-    }
-    return { ok: true, recheck: out };
-  } else if (op === "skip") {
-    const { error: e } = await db.rpc("admin_skip");
-    if (e) throw e;
-    await advance().catch(() => null);
+  const want = data.value.payout_address ? rawAddress(String(data.value.payout_address)).toLowerCase() : await houseRaw();
+  for (const W of [WalletContractV5R1, WalletContractV4, WalletContractV3R2]) {
+    const c = W.create({ workchain: 0, publicKey: key.publicKey });
+    if (c.address.toRawString().toLowerCase() === want) { payWallet = { c, key, raw: want }; return payWallet; }
   }
-  const { data: sec } = await db.rpc("get_round_secret", { p_round: 0 });
-  const { data: timing } = await db.from("app_config").select("value").eq("key", "timing").maybeSingle();
-  return { ok: true, next_mod: sec?.forced_mod || null, fast: !!timing?.value?.fast };
+  throw new Error("payout_wallet_mismatch");   // the phrase is not for the configured wallet: send nothing
+}
+async function walletSeqno(addr: string) {
+  const r = await tcPost("runGetMethod", { address: addr, method: "seqno", stack: [] });
+  if (r.exit_code !== 0 || !r.stack || !r.stack[0]) throw new Error("seqno_unavailable");
+  return Number(BigInt(r.stack[0][1]));
+}
+const toRaw = (a: string) => Address.parse(a).toRawString().toLowerCase();
+// our transfer for request #id, seen on chain: same receiver, same amount, our comment, executed successfully
+async function findPayoutTx(id: number, to: string, nano: string, wallet: string) {
+  const r = await fetch(`https://toncenter.com/api/v3/transactions?account=${wallet}&limit=40&sort=desc`, { headers: tcHeaders(), signal: AbortSignal.timeout(10000) });
+  if (!r.ok) return null;
+  const txs = (await r.json()).transactions || [];
+  for (const tx of txs) {
+    const d = tx.description || {};
+    if (d.aborted !== false || !d.compute_ph || d.compute_ph.success !== true || (d.action && d.action.success === false)) continue;
+    for (const m of tx.out_msgs || []) {
+      const dec = m.message_content && m.message_content.decoded;
+      if (dec && dec.type === "text_comment" && dec.comment === `CUTLINE payout #${id}` &&
+          low(m.destination) === to && String(m.value) === nano) return String(tx.hash);
+    }
+  }
+  return null;
+}
+// a deposit we credited is still there, as a successful incoming transfer to the house wallet
+async function depositOnChain(hash: string, house: string) {
+  const hx = toHex(Uint8Array.from(atob(hash), (ch) => ch.charCodeAt(0)));
+  const r = await fetch(`https://tonapi.io/v2/blockchain/transactions/${hx}`, { signal: AbortSignal.timeout(8000) }).catch(() => null);
+  if (!r || !r.ok) return null;                     // unknown (network): try later, do not hold
+  const j = await r.json();
+  return j.success === true && j.aborted === false && low(j.account && j.account.address) === house &&
+    low(j.in_msg && j.in_msg.destination && j.in_msg.destination.address) === house && j.in_msg.bounced !== true;
+}
+async function payouts() {
+  if (!Deno.env.get("PAYOUT_MNEMONIC")) return { ok: false, error: "not_configured" };
+  const { data: slot, error: e0 } = await db.rpc("payout_slot", { p_gap_ms: 20000 });
+  if (e0) throw e0;
+  if (!slot) return { ok: true, waited: true };
+  const w = await payoutWallet();
+  const addr = w.c.address.toString({ bounceable: false });
+  const info = await tcGet("getAddressInformation", { address: addr });
+  // a wallet that never sent anything signs its first transfer without an expiry time; we only pay from an active
+  // wallet with seqno > 0, so every transfer we sign expires after 60 s
+  if (info.state !== "active") return { ok: false, error: "payout_wallet_not_active" };
+  const seqno = await walletSeqno(addr);
+  if (!(seqno > 0)) return { ok: false, error: "payout_wallet_not_active" };
+
+  // 1. transfers already on their way
+  const { data: fl, error: e1 } = await db.rpc("payout_inflight");
+  if (e1) throw e1;
+  for (const f of fl || []) {
+    const hash = await findPayoutTx(f.id, toRaw(f.address), String(f.nano), w.raw);
+    if (hash) { await db.rpc("payout_done", { p_id: f.id, p_tx: hash }); continue; }
+    const age = Date.now() - Date.parse(f.sent_at);
+    if (age > 150000 && Number(f.seqno) > 0 && seqno === Number(f.seqno)) { await db.rpc("payout_reset", { p_id: f.id }); continue; }
+    if (age > 600000) { await db.rpc("payout_hold", { p_id: f.id, p_note: "auto: sent but not seen on chain, check by hand" }); continue; }
+    return { ok: true, waiting: f.id };              // one payout at a time
+  }
+
+  // 2. the next request
+  const { data: nx, error: e2 } = await db.rpc("payout_next");
+  if (e2) throw e2;
+  if (!nx) return { ok: true, idle: true };
+  const house = await houseRaw();
+  for (const h of nx.deposits || []) {
+    const ok = await depositOnChain(String(h), house);
+    if (ok === null) return { ok: false, error: "chain_unavailable" };
+    if (!ok) { await db.rpc("payout_hold", { p_id: nx.id, p_note: `auto: deposit ${h} not confirmed on chain` }); return { ok: false, held: nx.id }; }
+    await sleep(300);
+  }
+  let to: Address;
+  try { to = Address.parse(String(nx.address)); } catch { await db.rpc("payout_hold", { p_id: nx.id, p_note: "auto: bad address" }); return { ok: false, held: nx.id }; }
+  const nano = BigInt(nx.nano);
+  if (BigInt(info.balance) < nano + 60000000n) return { ok: false, error: "low_balance" };   // keep ~0.06 for fees
+  const { data: claimed, error: e3 } = await db.rpc("payout_claim", { p_id: nx.id, p_seqno: seqno, p_wallet: w.raw });
+  if (e3) throw e3;
+  if (!claimed) return { ok: false, error: "not_claimed" };
+  const body = w.c.createTransfer({
+    seqno, secretKey: w.key.secretKey, timeout: Math.floor(Date.now() / 1000) + 60,
+    sendMode: SendMode.PAY_GAS_SEPARATELY | SendMode.IGNORE_ERRORS,
+    messages: [internal({ to, value: nano, bounce: false, body: `CUTLINE payout #${nx.id}` })],
+  });
+  const ext = beginCell().store(storeMessage(external({ to: w.c.address, body }))).endCell();
+  await tcPost("sendBoc", { boc: ext.toBoc().toString("base64") });
+  return { ok: true, sent: nx.id };
 }

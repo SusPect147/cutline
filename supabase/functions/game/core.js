@@ -302,11 +302,17 @@ function shuffleLayout(poly, items, rng){
   })(poly, items);
   return out;
 }
-/* Pure replay of a round: same inputs → same cuts and same winner, in the game and in the verifier. */
-function simulateRound(parts0, rng, mod){
+/* Pure replay of a round: same inputs → same cuts and same winner, in the game and in the verifier.
+   Rule version v (stored in result.v):
+     1 — after 26 cuts (or when only slivers are left) the winner is drawn by area;
+     2 — at most 25 cuts: if several owners are still on the field after the 25th, the biggest territory wins
+         (end: 'limit'); when only slivers are left besides one owner, that owner wins. */
+const CUT_LIMIT = 25;
+function simulateRound(parts0, rng, mod, v){
+  v = v || 2;
   const polys = new Map(parts0.map(p => [p.id, p.poly]));
   const alive = new Set(parts0.map(p => p.id));
-  let rg = R(UNIT), cuts = 0, winner = null, lottery = false;
+  let rg = R(UNIT), cuts = 0, winner = null, lottery = false, end = null;
   const steps = [];
   while (!winner){
     const plan = planStep(rg, [...alive].map(id => ({id, poly: polys.get(id)})), rng, mod);
@@ -325,7 +331,13 @@ function simulateRound(parts0, rng, mod){
     if (ids.length === 1) winner = ids[0];
     else {
       const mx = Math.max(...ids.map(id => ch[id]));
-      if (mx > 0.9995 || cuts >= 26){
+      if (v >= 2 && (mx > 0.9995 || cuts >= CUT_LIMIT)){
+        let best = ids[0];
+        for (const id of ids) if (ch[id] > ch[best]) best = id;
+        winner = best;
+        if (mx > 0.9995 && cuts < CUT_LIMIT){ for (const id of ids) if (id !== winner){ alive.delete(id); delete ch[id]; } ch[winner] = 1; }
+        else end = 'limit';                      // everyone keeps their share on screen; the verdict shows them
+      } else if (v < 2 && (mx > 0.9995 || cuts >= 26)){
         // leftover slivers: settle by the same area lottery
         let u = rng(); winner = ids[ids.length - 1];
         for (const id of ids){ u -= ch[id]; if (u <= 0){ winner = id; break; } }
@@ -339,9 +351,9 @@ function simulateRound(parts0, rng, mod){
       shuffled = shuffleLayout(rg.poly, ids.map(id => ({id, w: ch[id]})), rng);
       for (const id of ids) polys.set(id, shuffled[id]);
     }
-    steps.push({plan, region: rg, chances: ch, winner, shuffled});
+    steps.push({plan, region: rg, chances: ch, winner, shuffled, end});
   }
-  return {steps, winner, lottery, cuts};
+  return {steps, winner, lottery, cuts, end};
 }
 
 
@@ -359,12 +371,12 @@ function buildField(bets, seedHash){
   if (root) layoutTree(root, UNIT, 'stake', 'poly');
   return {root, players: order};
 }
-const STAGE_BASE = {intro: 900, aim: 950, lock: 200, split: 260, hold: 1050, fall: 800, cam: 650, shuffle: 1300};
+const STAGE_BASE = {intro: 900, aim: 950, lock: 200, split: 260, hold: 1050, fall: 800, cam: 650, shuffle: 1300, verdict: 3200};
 /* stage length: slower for a duel, a little faster once a round gets long */
 function stageMs(st, cutsDone, duel){
   let m = 1;
   if (duel && (st === 'aim' || st === 'hold')) m = 1.7;
-  if (cutsDone > 4 && st !== 'intro') m *= Math.max(.6, 1 - .06 * (cutsDone - 4));
+  if (cutsDone > 4 && st !== 'intro' && st !== 'verdict') m *= Math.max(.6, 1 - .06 * (cutsDone - 4));
   return STAGE_BASE[st] * m;
 }
 /* the whole animation as a list of stages, so the server knows when the round ends and late viewers can seek */
@@ -377,18 +389,24 @@ function timeline(steps, nPlayers){
     for (const st of ['aim', 'lock', 'split', 'hold']) push(i, st, i, duel);
     for (const st of ['fall', 'cam']) push(i, st, i + 1, duel);
     if (!s.winner && s.shuffled) push(i, 'shuffle', i + 1, duel);
+    if (s.end === 'limit') push(i, 'verdict', i + 1, false);
   });
   return {list, total: Math.ceil(t)};
 }
 /* server side: everything about a round, from public data + the secret seed + the closing entropy */
-function computeRound(bets, seedHash, seed, entropy, forcedMod){
+function computeRound(bets, seedHash, seed, entropy, forcedMod, v){
+  v = v || 2;
   const {players} = buildField(bets, seedHash);
   const mod = forcedMod && MODS[forcedMod] ? forcedMod : pickMod(seed, entropy);
-  const sim = simulateRound(players.map(p => ({id: p.id, poly: p.poly})), cutRngOf(seed, entropy), mod);
+  const sim = simulateRound(players.map(p => ({id: p.id, poly: p.poly})), cutRngOf(seed, entropy), mod, v);
   const field = {}; for (const p of players) field[p.id] = p.poly;
-  const steps = sim.steps.map(s => ({g: geomOf(s.plan), keep: s.plan.keep, fracs: s.plan.fracs, chances: s.chances, winner: s.winner, shuffled: s.shuffled}));
-  const result = {v: 1, field, order: players.map(p => p.id), steps};
-  return {mod, modForced: !!(forcedMod && MODS[forcedMod]), winner: sim.winner, cuts: sim.cuts, lottery: sim.lottery, result, anim: timeline(steps, players.length).total};
+  const steps = sim.steps.map(s => {
+    const o = {g: geomOf(s.plan), keep: s.plan.keep, fracs: s.plan.fracs, chances: s.chances, winner: s.winner, shuffled: s.shuffled};
+    if (s.end) o.end = s.end;
+    return o;
+  });
+  const result = {v, field, order: players.map(p => p.id), steps};
+  return {mod, modForced: !!(forcedMod && MODS[forcedMod]), winner: sim.winner, cuts: sim.cuts, lottery: sim.lottery, end: sim.end, result, anim: timeline(steps, players.length).total};
 }
 /* client side: turn the stored result back into regions for the animation */
 function expandResult(result){
@@ -396,7 +414,7 @@ function expandResult(result){
   const steps = result.steps.map(s => {
     const plan = Object.assign({}, s.g, {parts: buildParts(rg, s.g), keep: s.keep, fracs: s.fracs, signs: s.g.kind === 'cross' ? SIGNS : undefined});
     rg = plan.parts[plan.keep];
-    return {plan, region: rg, chances: s.chances, winner: s.winner, shuffled: s.shuffled};
+    return {plan, region: rg, chances: s.chances, winner: s.winner, shuffled: s.shuffled, end: s.end || null};
   });
   return {steps};
 }
@@ -407,6 +425,6 @@ globalThis.CutlineCore = {
   treeWeight, layoutTree, leaves, insertLeafInto,
   MODS, MOD_KEYS, pickMod, circlePoly, regionAreaWith, regionArea, insideRegion, randomPointInRegion, cutRegion,
   SIGNS, buildParts, geomOf, makeCandidate, planStep, shuffleLayout, simulateRound,
-  buildField, STAGE_BASE, stageMs, timeline, computeRound, expandResult
+  buildField, STAGE_BASE, stageMs, timeline, computeRound, expandResult, CUT_LIMIT
 };
 })();
