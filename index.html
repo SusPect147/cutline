@@ -884,9 +884,9 @@ body.room-real .rules .fair{margin-top:0;padding-top:0;border-top:0}
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js" integrity="sha384-GFr3yTh5lJznCbZfpTtXnwboFsxqtTQoeTZCRHhE0579KrRmlCzen5AA8ohaB5ug" crossorigin="anonymous"></script>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script src="core.js?v=2026-10-27.3"></script>
+<script src="core.js?v=2026-10-27.4"></script>
 <script>
 'use strict';
 (function(){
@@ -2933,15 +2933,20 @@ const toNano = v => (BigInt(Math.round(v * 100)) * 10000000n).toString();
 
 /* ---------- TON Connect (loaded only when someone pays) ---------- */
 let tcUI = null, tcLoading = null;
-function loadScript(src){
-  return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.async = true; s.onload = res; s.onerror = () => rej(new Error('load ' + src)); document.head.appendChild(s); });
+function loadScript(src, integrity){
+  return new Promise((res, rej) => {
+    const s = document.createElement('script'); s.src = src; s.async = true;
+    if (integrity){ s.integrity = integrity; s.crossOrigin = 'anonymous'; }   // the browser refuses a changed file
+    s.onload = res; s.onerror = () => rej(new Error('load ' + src)); document.head.appendChild(s);
+  });
 }
+const TC_SRI = 'sha384-sSX7t/8RIb6F0lgKBLCCytcRdsJv/+lBzIvFAnTlX7HymE9i9wCFIFOQ4iH7dJWO';
 function tcLoad(){
   if (tcUI) return Promise.resolve(tcUI);
   if (!tcLoading) tcLoading = (async () => {
     if (!window.TON_CONNECT_UI){
-      try { await loadScript('https://unpkg.com/@tonconnect/ui@2.4.4/dist/tonconnect-ui.min.js'); }
-      catch(e){ await loadScript('https://cdn.jsdelivr.net/npm/@tonconnect/ui@2.4.4/dist/tonconnect-ui.min.js'); }
+      try { await loadScript('https://unpkg.com/@tonconnect/ui@2.4.4/dist/tonconnect-ui.min.js', TC_SRI); }
+      catch(e){ await loadScript('https://cdn.jsdelivr.net/npm/@tonconnect/ui@2.4.4/dist/tonconnect-ui.min.js', TC_SRI); }
     }
     /* The game shares its web origin (suspect147.github.io) with other apps, and TON Connect keeps its session in
        localStorage under fixed keys — so a wallet connected in another app showed up here. CUTLINE keeps its own,
@@ -3323,8 +3328,8 @@ function renderQuests(){
     $('#qRefList').innerHTML = `<li class="empty">${esc(t('q.loading'))}</li>`; $('#qTaskList').innerHTML = '';
     $('#qRefRule').textContent = ''; $('#qLink').textContent = '…'; return;
   }
-  const f = quests.friends || {}, md = Number(quests.friend_min_deposit) || 0.1, mr = Number(quests.friend_min_rounds) || 1;
-  $('#qRefRule').textContent = mr > 1 ? t('q.ref.ruleN', {d: fmt(md), r: mr}) : t('q.ref.rule', {d: fmt(md)});
+  const f = quests.friends || {}, mw = Number(quests.friend_min_wager) || 0.2;
+  $('#qRefRule').textContent = t('q.ref.rule2', {w: fmt(mw)});
   $('#qInvited').textContent = Number(f.total) || 0;
   $('#qCounted').textContent = Number(f.ok) || 0;
   $('#qLink').textContent = quests.link || '—';
@@ -3400,10 +3405,32 @@ Object.assign(I18N.en, {
 Object.assign(I18N.ru, {
   'pr.avail': 'Доступно к выводу: {a} Gram', 'pr.lockmore': 'поставьте ещё {w} в PvP, чтобы открыть остальное', 'wd.total': 'Всего на балансе: {b} Gram'
 });
-const TG_ERRORS = {tg_required: 'tg.required', tg_bad_sign: 'tg.bad_sign', tg_expired: 'tg.expired', tg_no_user: 'tg.no_user', no_bot_token: 'tg.no_token'};
+
+/* the launch data from Telegram is accepted for an hour; a later reload (e.g. after an update) keeps the saved
+   session, but only if it belongs to the same Telegram user */
+async function resumeSession(tg){
+  try {
+    const tgId = tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id;
+    if (!tgId) return null;
+    const {data: r, error} = await sb.auth.refreshSession();
+    const s = r && r.session;
+    if (error || !s || Number(s.user && s.user.app_metadata && s.user.app_metadata.tg_id) !== Number(tgId)) return null;
+    const {data: w, error: e2} = await sb.rpc('my_wallet'); if (e2 || !w) return null;
+    const {data: pr} = await sb.from('profiles').select('name,avatar_url').eq('id', s.user.id).maybeSingle();
+    return {access_token: s.access_token, refresh_token: s.refresh_token, name: (pr && pr.name) || 'Player', avatar_url: pr && pr.avatar_url,
+      username: w.username, balance: w.balance, fun_balance: w.fun_balance, last_faucet_round: w.last_faucet_round};
+  } catch(e){ return null; }
+}
+Object.assign(I18N.en, {
+  'q.ref.rule2': 'A friend counts after betting at least {w} Gram in PvP.', 'tg.slow': 'Too many attempts. Wait a minute and open the game again.'
+});
+Object.assign(I18N.ru, {
+  'q.ref.rule2': 'Друг засчитывается, когда поставит в PvP от {w} Gram.', 'tg.slow': 'Слишком много попыток. Подождите минуту и откройте игру снова.'
+});
+const TG_ERRORS = {tg_required: 'tg.required', tg_bad_sign: 'tg.bad_sign', tg_expired: 'tg.expired', tg_no_user: 'tg.no_user', no_bot_token: 'tg.no_token', rate_limited: 'tg.slow'};
 const tgErr = m => TG_ERRORS[m] ? t(TG_ERRORS[m]) : m;
 /* every deploy bumps BUILD here and in version.json; open games notice and reload between rounds */
-const BUILD = '2026-10-27.3';
+const BUILD = '2026-10-27.4';
 let pendingVersion = null;
 async function checkVersion(){
   try {
@@ -3473,7 +3500,13 @@ async function boot(){
       if (tg.disableVerticalSwipes) tg.disableVerticalSwipes();
     } catch(e){}
     // the server checks Telegram's signature and answers with this player's session, name and picture
-    const me0 = await callGame({action: 'tg', initData});
+    let me0;
+    try { me0 = await callGame({action: 'tg', initData}); }
+    catch(e){
+      if (String(e && e.message) !== t('tg.expired')) throw e;
+      me0 = await resumeSession(tg);
+      if (!me0) throw e;
+    }
     const {data: si, error: e1} = await sb.auth.setSession({access_token: me0.access_token, refresh_token: me0.refresh_token});
     if (e1) throw e1;
     myId = si.session.user.id;
