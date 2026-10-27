@@ -5,6 +5,7 @@
 //   advance  – settle any round whose betting has closed, in both rooms (idempotent; anyone may trigger it)
 //   deposits – scan the house wallet for incoming Gram and credit them (idempotent; anyone may trigger it)
 //   payouts  – send pending withdrawals from the payout wallet (PAYOUT_MNEMONIC secret; one at a time, see below)
+//   quest_channel – the signed-in player asks for the "subscribe to the channel" reward: the bot checks the membership
 // The round itself is computed from public data (bets, seed hash) + the secret seed + fresh entropy,
 // using exactly the same core.js the browser uses to replay and verify it.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
@@ -41,6 +42,7 @@ Deno.serve(async (req) => {
       case "advance": return json(await advance());
       case "deposits": return json(await scanDeposits());
       case "payouts": return json(await payouts());
+      case "quest_channel": return json(await questChannel(req));
       default: return json({ error: "unknown_action" }, 400);
     }
   } catch (e) {
@@ -89,7 +91,9 @@ async function checkInitData(initData: string) {
   if (!(age < 86400)) throw new Error("tg_expired");
   const user = JSON.parse(params.get("user") || "null");
   if (!user || !Number.isSafeInteger(user.id)) throw new Error("tg_no_user");
-  return user as { id: number; first_name?: string; last_name?: string; username?: string; photo_url?: string };
+  // start_param: set when the game was opened through a link like t.me/<bot>?startapp=r_CODE (an invite)
+  return { ...user, start_param: String(params.get("start_param") || "") } as
+    { id: number; first_name?: string; last_name?: string; username?: string; photo_url?: string; start_param: string };
 }
 
 // copies the player's current Telegram photo into our storage; returns null when nothing changed
@@ -146,6 +150,11 @@ async function tgLogin(body: Record<string, unknown>) {
     p_username: u.username || null,
   });
   if (e3) throw e3;
+  // a brand-new player who came through an invite link is bound to the inviter (once; the database checks the rest)
+  if (!known && u.start_param) {
+    const { error: e4 } = await db.rpc("bind_referral", { p_user: v.session.user.id, p_param: u.start_param.slice(0, 64) });
+    if (e4) console.error("bind_referral", e4);
+  }
   return {
     access_token: v.session.access_token, refresh_token: v.session.refresh_token,
     user_id: v.session.user.id, name: w.name, username: w.username, avatar_url: w.avatar_url,
@@ -154,7 +163,7 @@ async function tgLogin(body: Record<string, unknown>) {
 }
 
 async function status() {
-  try { const me = await tgApi("getMe", {}); return { ok: true, bot: me.username }; }
+  try { const me = await tgApi("getMe", {}); return { ok: true, bot: me.username, main_app: !!me.has_main_web_app }; }
   catch (e) { return { ok: false, error: e instanceof Error ? e.message : String(e) }; }
 }
 
@@ -384,7 +393,10 @@ async function payouts() {
   const { data: got, error: e0 } = await db.rpc("payout_lock", { p_secs: LOCK_S });
   if (e0) throw e0;
   if (!got) return { ok: true, busy: true };
-  const run = payoutRun().finally(() => db.rpc("payout_unlock"));
+  // not enough Gram in the payout wallet: keep the lock (~3 min) instead of retrying every 15 s until it is topped up
+  const run = payoutRun().then(
+    async (r) => { if ((r as { error?: string }).error !== "low_balance") await db.rpc("payout_unlock"); return r; },
+    async (e) => { await db.rpc("payout_unlock"); throw e; });
   // the caller (the database's 5 s nudge, or a player's app) may hang up: the run still finishes
   // deno-lint-ignore no-explicit-any
   (globalThis as any).EdgeRuntime?.waitUntil?.(run.catch(() => {}));
@@ -436,7 +448,7 @@ async function payoutRun() {
     let to: Address;
     try { to = Address.parse(String(nx.address)); } catch { await db.rpc("payout_hold", { p_id: nx.id, p_note: "auto: bad address" }); continue; }
     const nano = BigInt(nx.nano);
-    if (BigInt(info.balance) < nano + 60000000n) return { ok: false, error: "low_balance", paid, sent };   // keep ~0.06 for fees
+    if (BigInt(info.balance) < nano + 20000000n) return { ok: false, error: "low_balance", paid, sent };   // a transfer costs ~0.005: keep 0.02
     const { data: claimed, error: e3 } = await db.rpc("payout_claim", { p_id: nx.id, p_seqno: seqno, p_wallet: w.raw });
     if (e3) throw e3;
     if (!claimed) return { ok: false, error: "not_claimed", paid, sent };
@@ -451,4 +463,24 @@ async function payoutRun() {
     await sleep(4000);                                // then look for it on chain (step 1)
   }
   return { ok: true, more: true, paid, sent };
+}
+
+/* ---------- tasks: "subscribe to the channel" is checked by the bot (it must be an admin of the channel) ---------- */
+async function questChannel(req: Request) {
+  const jwt = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+  const { data: ud, error } = await db.auth.getUser(jwt);
+  if (error || !ud || !ud.user) return { error: "auth_required" };
+  const { data: info, error: e1 } = await db.rpc("quest_channel_info", { p_user: ud.user.id });
+  if (e1) throw e1;
+  if (!info || !info.tg_id || !info.channel) return { error: "quests_off" };
+  if (info.claimed) return { error: "quest_claimed" };
+  // deno-lint-ignore no-explicit-any
+  let m: any;
+  try { m = await tgApi("getChatMember", { chat_id: "@" + String(info.channel).replace(/^@/, ""), user_id: info.tg_id }); }
+  catch (e) { console.error("getChatMember", e); return { error: "channel_unavailable" }; }
+  const ok = ["creator", "administrator", "member"].includes(m.status) || (m.status === "restricted" && m.is_member === true);
+  if (!ok) return { error: "not_subscribed" };
+  const { data, error: e2 } = await db.rpc("quest_channel_claim", { p_user: ud.user.id });
+  if (e2) return { error: e2.message };
+  return data;
 }
