@@ -30,13 +30,21 @@ const json = (b: unknown, status = 200) =>
   new Response(JSON.stringify(b), { status, headers: { ...cors, "Content-Type": "application/json" } });
 const hex = (n: number) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (x) => x.toString(16).padStart(2, "0")).join("");
 
+// requests per minute from one address, per action (generous: many players can share one mobile-network address)
+const PER_MIN: Record<string, number> = { tg: 30, status: 60, advance: 240, deposits: 120, payouts: 120, quest_channel: 20 };
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
   let body: Record<string, unknown>;
   try { body = await req.json(); } catch { return json({ error: "bad_json" }, 400); }
+  const action = String(body.action || "");
+  if (!Object.hasOwn(PER_MIN, action)) return json({ error: "unknown_action" }, 400);
   try {
-    switch (body.action) {
+    // flood protection: a burst from one address is turned away before any real work is done
+    const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "?";
+    const { data: ok } = await db.rpc("rate_hit", { p_key: `${action}:${ip}`, p_max: PER_MIN[action], p_secs: 60 });
+    if (ok === false) return json({ error: "rate_limited" }, 429);
+    switch (action) {
       case "tg": return json(await tgLogin(body));
       case "status": return json(await status());
       case "advance": return json(await advance());
@@ -88,7 +96,7 @@ async function checkInitData(initData: string) {
   const sig = toHex(await hmac(secret, enc(dcs)));
   if (!sameHex(sig, hash.toLowerCase())) throw new Error("tg_bad_sign");
   const age = Date.now() / 1000 - Number(params.get("auth_date") || 0);
-  if (!(age < 86400)) throw new Error("tg_expired");
+  if (!(age < 3600)) throw new Error("tg_expired");               // launch data is accepted for one hour only
   const user = JSON.parse(params.get("user") || "null");
   if (!user || !Number.isSafeInteger(user.id)) throw new Error("tg_no_user");
   // start_param: set when the game was opened through a link like t.me/<bot>?startapp=r_CODE (an invite)
@@ -120,9 +128,21 @@ async function tgLogin(body: Record<string, unknown>) {
   catch (e) { return { error: e instanceof Error ? e.message : "tg_bad_sign" }; }
 
   // one Telegram account = one game account
-  const email = `tg${u.id}@tg.cutline.app`;
   const { data: known } = await db.rpc("tg_lookup", { p_tg_id: u.id });
-  if (!known) {
+  // a sign-in burst for one account is turned away (the launch data stays valid for an hour)
+  const { data: okRate } = await db.rpc("rate_hit", { p_key: `tglogin:${u.id}`, p_max: 12, p_secs: 60 });
+  if (okRate === false) return { error: "rate_limited" };
+  let email: string;
+  if (known) {
+    // the account is found through our own Telegram link, never through a guessable e-mail
+    const { data: gu, error } = await db.auth.admin.getUserById(known.user_id);
+    if (error || !gu || !gu.user || !gu.user.email) throw error || new Error("tg_session");
+    email = gu.user.email;
+  } else {
+    // A new account gets an address nobody can guess (it is derived with a server secret) on a domain that can
+    // never exist (.invalid), so no one can register it in advance with their own password, and no e-mail
+    // (password reset or any other) can ever be delivered for it.
+    email = await accountEmail(u.id);
     const { error } = await db.auth.admin.createUser({ email, email_confirm: true, app_metadata: { tg_id: u.id } });
     if (error && !/already|exists|registered/i.test(error.message)) throw error;
   }
@@ -134,11 +154,16 @@ async function tgLogin(body: Record<string, unknown>) {
   });
   const { data: v, error: e2 } = await pub.auth.verifyOtp({ token_hash: link.properties.hashed_token, type: "magiclink" });
   if (e2 || !v.session) throw e2 || new Error("tg_session");
+  const metaTg = v.session.user.app_metadata && v.session.user.app_metadata.tg_id;
+  if (metaTg != null && Number(metaTg) !== u.id) throw new Error("tg_session");   // never hand out someone else's account
 
   // name and picture come from Telegram, checked above; the client cannot change them
   const name = [u.first_name, u.last_name].filter(Boolean).join(" ") || u.username || "Player";
   let avatar: string | null = null, photoUid: string | null = null;
-  try {
+  // the picture is refreshed from Telegram at most every 10 minutes
+  const fresh = known && known.updated_at && Date.now() - Date.parse(known.updated_at) < 600000;
+  if (fresh) avatar = known.avatar_url || null;
+  else try {
     const a = await fetchAvatar(u.id, known?.photo_uid || null);
     if (a) { avatar = a.url; photoUid = a.uid; }
     else avatar = known?.avatar_url || null;
@@ -160,6 +185,11 @@ async function tgLogin(body: Record<string, unknown>) {
     user_id: v.session.user.id, name: w.name, username: w.username, avatar_url: w.avatar_url,
     balance: w.balance, fun_balance: w.fun_balance, last_faucet_round: w.last_faucet_round,
   };
+}
+
+async function accountEmail(tgId: number) {
+  const key = enc(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "");
+  return `u${toHex(await hmac(key, enc("cutline-user:" + tgId))).slice(0, 32)}@cutline.invalid`;
 }
 
 async function status() {
@@ -393,6 +423,9 @@ async function payouts() {
   const { data: got, error: e0 } = await db.rpc("payout_lock", { p_secs: LOCK_S });
   if (e0) throw e0;
   if (!got) return { ok: true, busy: true };
+  // nothing waiting: done, without asking the blockchain anything
+  const { data: work } = await db.rpc("payout_has_work");
+  if (work === false) { await db.rpc("payout_unlock"); return { ok: true, idle: true }; }
   // not enough Gram in the payout wallet: keep the lock (~3 min) instead of retrying every 15 s until it is topped up
   const run = payoutRun().then(
     async (r) => { if ((r as { error?: string }).error !== "low_balance") await db.rpc("payout_unlock"); return r; },
@@ -484,3 +517,4 @@ async function questChannel(req: Request) {
   if (e2) return { error: e2.message };
   return data;
 }
+
