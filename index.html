@@ -601,6 +601,20 @@ body.on-profile .dock,body.on-profile #gameView{display:none!important}
 .q-toast{position:fixed;left:50%;bottom:calc(var(--nav-h) + 22px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:7;width:max-content;max-width:min(92vw,420px);padding:10px 14px;border-radius:14px;background:var(--surface-3);border:1px solid var(--line-strong);font-size:13px;font-weight:600;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.5)}
 .q-toast.ok{border-color:var(--green-line);color:var(--green-hi)}
 .q-toast.bad{color:#ff8f8f}
+
+/* ---------- only money that went through the game can be withdrawn ---------- */
+.pf-lock{font-size:12px;font-weight:600;color:var(--muted);line-height:1.4}
+.pf-lock b{color:var(--fg);font-family:var(--font-num)}
+.wd-lock{margin:8px 0 0;padding:10px 12px;border-radius:12px;background:rgba(255,190,80,.08);border:1px solid rgba(255,190,80,.22);color:#ffd08a;font-size:12.5px;line-height:1.45}
+/* operations: a scrolling box instead of an endless page */
+#pfOps{max-height:min(430px,58vh);overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding-right:2px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.18) transparent}
+#pfOps::-webkit-scrollbar{width:4px}
+#pfOps::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);border-radius:2px}
+/* PvP: no "How to play" block, only the fairness check */
+.rules .fair-h{display:none}
+body.room-real .rules .how-h,body.room-real .rules ol{display:none}
+body.room-real .rules .fair-h{display:block}
+body.room-real .rules .fair{margin-top:0;padding-top:0;border-top:0}
 </style>
 </head><body>
 <div id="splash" aria-hidden="true">
@@ -677,7 +691,8 @@ body.on-profile .dock,body.on-profile #gameView{display:none!important}
   </section>
 
   <section class="panel rules">
-    <h2 data-i18n="how">How to play</h2>
+    <h2 class="how-h" data-i18n="how">How to play</h2>
+    <h2 class="fair-h" data-i18n="fair.title">Fair play</h2>
     <ol>
       <li data-i18n="how.1"></li>
       <li data-i18n="how.2"></li>
@@ -711,6 +726,7 @@ body.on-profile .dock,body.on-profile #gameView{display:none!important}
     <div class="pf-bal-top">
       <span class="lbl" data-i18n="pr.balance">Gram balance</span>
       <span class="pf-amt"><span class="gram-slot"></span><span id="pfBal">0</span></span>
+      <span class="pf-lock" id="pfLock" hidden></span>
     </div>
     <div class="pf-acts">
       <button class="btn-green" id="btnDeposit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg><span data-i18n="pr.deposit">Deposit</span></button>
@@ -832,7 +848,8 @@ body.on-profile .dock,body.on-profile #gameView{display:none!important}
   <div class="sheet topup-sheet money-sheet" role="dialog" aria-modal="true" data-i18n-aria="wd.title">
     <div class="grabber"></div>
     <div class="sheet-head"><h2 data-i18n="wd.title">Withdraw Gram</h2><button data-close="wdSheet" data-i18n="close">Close</button></div>
-    <div class="bal-row"><span data-i18n="pr.balance">Gram balance</span><b><span id="wdBal">0</span><span class="gram-slot"></span></b></div>
+    <div class="bal-row"><span data-i18n="wd.avail">Available to withdraw</span><b><span id="wdBal">0</span><span class="gram-slot"></span></b></div>
+    <p class="wd-lock" id="wdLock" hidden></p>
     <div class="amt-zone">
       <span class="amt-lbl" data-i18n="wd.amount">Amount</span>
       <label class="amt-line" id="wdLine"><span class="amt-mirror" id="wdMirror"></span><input id="wdAmt" type="text" inputmode="decimal" autocomplete="off" placeholder="0"><span class="amt-unit">Gram</span></label>
@@ -866,7 +883,7 @@ body.on-profile .dock,body.on-profile #gameView{display:none!important}
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script src="core.js?v=2026-10-27.1"></script>
+<script src="core.js?v=2026-10-27.2"></script>
 <script>
 'use strict';
 (function(){
@@ -2822,6 +2839,7 @@ function switchRoom(r){
 }
 function applyRoom(){
   GEM = room === 'real' ? GEM_GRAM : GEM_FUN;
+  document.body.classList.toggle('room-real', room === 'real');
   fillCoinSlots();
     $('#btnRefill').setAttribute('aria-label', t(room === 'real' ? 'plus.real' : 'plus.fun'));
   $('#how4').textContent = t('how.4.' + room);
@@ -2966,10 +2984,18 @@ async function loadProfile(){
   if (tab === 'profile') renderProfile();
   return walletInfo;
 }
+/* only money that went through the game can be withdrawn: the server keeps "still to bet" (wager_left) */
+const wagerLeft = () => Math.max(0, Math.min(wallet.real, Number(walletInfo && walletInfo.wager_left) || 0));
+const wdAvail = () => Math.max(0, r2(wallet.real - wagerLeft()));
 function renderProfileBal(){
   $('#pfBal').textContent = fmt(wallet.real);
   $('#pfFun').textContent = fmtC(wallet.fun);
-  $('#wdBal').textContent = fmt(wallet.real);
+  $('#wdBal').textContent = fmt(wdAvail());
+  const wl = wagerLeft();
+  $('#pfLock').hidden = !(wl > 0);
+  if (wl > 0) $('#pfLock').innerHTML = esc(t('pr.lock', {a: '\u0001', w: '\u0002'})).replace('\u0001', `<b>${fmt(wdAvail())}</b>`).replace('\u0002', `<b>${fmt(wl)}</b>`);
+  $('#wdLock').hidden = !(wl > 0);
+  if (wl > 0) $('#wdLock').textContent = t('wd.rule', {w: fmt(wl)});
 }
 const dateTxt = at => { try { return new Date(at).toLocaleString(lang === 'ru' ? 'ru-RU' : 'en-GB', {day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'}); } catch(e){ return ''; } };
 const shortAddr = a => a && a.length > 14 ? a.slice(0, 6) + '…' + a.slice(-6) : (a || '');
@@ -3015,7 +3041,7 @@ function renderProfile(){
   for (const r of (walletInfo && walletInfo.rewards) || []) ops.push({at: r.at, html: `<li><span class="op-ic in">${IC_GIFT}</span><div class="op-main"><b>${esc(t('pr.reward'))}</b><span>${esc(dateTxt(r.at))}</span></div><div class="op-amt">+${fmt(r.amount)}<span class="st ok">${esc(t('st.credited'))}</span></div></li>`});
   for (const w of (walletInfo && walletInfo.withdrawals) || []) ops.push({at: w.at, html: `<li><span class="op-ic">${IC_OUT}</span><div class="op-main"><b>${esc(t('pr.wd', {id: w.id}))}</b><span>${esc(shortAddr(w.address))} · ${esc(dateTxt(w.at))}${txLink(w)}</span></div><div class="op-amt">−${fmt(w.amount)}<span class="st ${ST_CLS[w.status] || ''}">${esc(t('st.' + w.status))}</span></div></li>`});
   ops.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
-  $('#pfOps').innerHTML = ops.length ? ops.slice(0, 15).map(o => o.html).join('') : `<li class="empty" style="display:block">${esc(t('pr.ops.none'))}</li>`;
+  $('#pfOps').innerHTML = ops.length ? ops.slice(0, 100).map(o => o.html).join('') : `<li class="empty" style="display:block">${esc(t('pr.ops.none'))}</li>`;
 }
 $('#btnSettings').addEventListener('click', () => { renderLangList(); openSheet('setSheet'); });
 function renderLangList(){ document.querySelectorAll('#langList [data-lang]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.lang === lang))); }
@@ -3156,7 +3182,8 @@ async function openWithdraw(){
   openSheet('wdSheet');
   sheetMsg($('#wdMsg'), '');
   $('#wdAddr').classList.remove('bad');
-  if (!walletInfo) await loadProfile();
+  renderProfileBal();
+  await loadProfile();                                   // fresh "available to withdraw"
   renderProfileBal();
   sizeAmt($('#wdAmt'));
   $('#wdInfo').textContent = t('wd.info', {m: fmt(Number(walletInfo && walletInfo.min_withdraw) || 1)});
@@ -3179,7 +3206,7 @@ $('#wdUseWallet').addEventListener('click', async () => {
   } catch(e){ sheetMsg($('#wdMsg'), esc(t('dep.cancelled')), 'bad'); }
 });
 $('#wdAddr').addEventListener('input', e => e.target.classList.remove('bad'));
-$('#wdMax').addEventListener('click', () => { const inp = $('#wdAmt'); inp.value = fmt(Math.floor(wallet.real * 100 + 1e-6) / 100); sizeAmt(inp); renderWdFee(); });
+$('#wdMax').addEventListener('click', () => { const inp = $('#wdAmt'); inp.value = fmt(Math.floor(wdAvail() * 100 + 1e-6) / 100); sizeAmt(inp); renderWdFee(); });
 let wdBusy = false;
 $('#wdSend').addEventListener('click', async () => {
   if (wdBusy) return;
@@ -3187,13 +3214,17 @@ $('#wdSend').addEventListener('click', async () => {
   const amt = parseAmt($('#wdAmt').value);
   if (!(amt >= min)) return sheetMsg(msg, esc(t('err.min_withdraw', {m: fmt(min)})), 'bad');
   if (amt > wallet.real + 1e-9) return sheetMsg(msg, esc(t('err.no_funds.real')), 'bad');
+  if (amt > wdAvail() + 1e-9) return sheetMsg(msg, esc(t('err.not_wagered', {a: fmt(wdAvail()), w: fmt(wagerLeft())})), 'bad');
   const ad = parseTon($('#wdAddr').value), house = walletInfo && parseTon(walletInfo.address);
   if (!ad || (house && ad.raw === house.raw)){ $('#wdAddr').classList.add('bad'); return sheetMsg(msg, esc(t('wd.addr.bad')), 'bad'); }
   wdBusy = true; $('#wdSend').disabled = true;
   sheetMsg(msg, esc(t('wd.sending')));
   const {data, error} = await sb.rpc('request_withdrawal', {p_amount: amt, p_address: ad.text});
   wdBusy = false; $('#wdSend').disabled = false;
-  if (error) return sheetMsg(msg, esc(errText(error, 'real')), 'bad');
+  if (error){
+    if (/not_wagered/.test(String(error.message || error))){ await loadProfile(); renderProfileBal(); return sheetMsg(msg, esc(t('err.not_wagered', {a: fmt(wdAvail()), w: fmt(wagerLeft())})), 'bad'); }
+    return sheetMsg(msg, esc(errText(error, 'real')), 'bad');
+  }
   if (data.status === 'pending'){
     sheetMsg(msg, esc(t('wd.ok', {id: data.id, amt: fmt(data.payout != null ? Number(data.payout) : amt)})), 'ok');
     if (data.balance != null) setWallet({balance: data.balance});
@@ -3342,10 +3373,23 @@ $('#qShare').addEventListener('click', () => {
   if (!quests || !quests.link) return;
   openTg('https://t.me/share/url?url=' + encodeURIComponent(quests.link) + '&text=' + encodeURIComponent(t('q.share.text')));
 });
+
+Object.assign(I18N.en, {
+  'wd.avail': 'Available to withdraw', 'fair.title': 'Fair play',
+  'pr.lock': 'Available to withdraw: {a} Gram · bet {w} more in PvP to unlock the rest',
+  'wd.rule': 'Only money that went through the game can be withdrawn: deposits and task rewards have to be bet in PvP first, winnings are yours at once. Left to bet: {w} Gram.',
+  'err.not_wagered': 'You can withdraw up to {a} Gram now. Bet {w} Gram more in PvP to unlock the rest.'
+});
+Object.assign(I18N.ru, {
+  'wd.avail': 'Доступно к выводу', 'fair.title': 'Честная игра',
+  'pr.lock': 'К выводу: {a} Gram · поставьте ещё {w} в PvP, чтобы открыть остальное',
+  'wd.rule': 'Вывести можно только то, что прошло через игру: пополнения и награды сначала нужно поставить в PvP, а выигрыши выводятся сразу. Осталось поставить: {w} Gram.',
+  'err.not_wagered': 'Сейчас можно вывести до {a} Gram. Поставьте в PvP ещё {w} Gram, чтобы открыть остальное.'
+});
 const TG_ERRORS = {tg_required: 'tg.required', tg_bad_sign: 'tg.bad_sign', tg_expired: 'tg.expired', tg_no_user: 'tg.no_user', no_bot_token: 'tg.no_token'};
 const tgErr = m => TG_ERRORS[m] ? t(TG_ERRORS[m]) : m;
 /* every deploy bumps BUILD here and in version.json; open games notice and reload between rounds */
-const BUILD = '2026-10-27.1';
+const BUILD = '2026-10-27.2';
 let pendingVersion = null;
 async function checkVersion(){
   try {
