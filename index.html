@@ -615,6 +615,8 @@ body.on-profile .dock,body.on-profile #gameView{display:none!important}
 body.room-real .rules .how-h,body.room-real .rules ol{display:none}
 body.room-real .rules .fair-h{display:block}
 body.room-real .rules .fair{margin-top:0;padding-top:0;border-top:0}
+.wd-total{margin:6px 2px 0;font-size:12px;color:var(--muted);font-weight:600}
+.wd-total b{font-family:var(--font-num);color:var(--fg)}
 </style>
 </head><body>
 <div id="splash" aria-hidden="true">
@@ -849,6 +851,7 @@ body.room-real .rules .fair{margin-top:0;padding-top:0;border-top:0}
     <div class="grabber"></div>
     <div class="sheet-head"><h2 data-i18n="wd.title">Withdraw Gram</h2><button data-close="wdSheet" data-i18n="close">Close</button></div>
     <div class="bal-row"><span data-i18n="wd.avail">Available to withdraw</span><b><span id="wdBal">0</span><span class="gram-slot"></span></b></div>
+    <p class="wd-total" id="wdTotal"></p>
     <p class="wd-lock" id="wdLock" hidden></p>
     <div class="amt-zone">
       <span class="amt-lbl" data-i18n="wd.amount">Amount</span>
@@ -883,7 +886,7 @@ body.room-real .rules .fair{margin-top:0;padding-top:0;border-top:0}
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script src="core.js?v=2026-10-27.2"></script>
+<script src="core.js?v=2026-10-27.3"></script>
 <script>
 'use strict';
 (function(){
@@ -2992,8 +2995,12 @@ function renderProfileBal(){
   $('#pfFun').textContent = fmtC(wallet.fun);
   $('#wdBal').textContent = fmt(wdAvail());
   const wl = wagerLeft();
-  $('#pfLock').hidden = !(wl > 0);
-  if (wl > 0) $('#pfLock').innerHTML = esc(t('pr.lock', {a: '\u0001', w: '\u0002'})).replace('\u0001', `<b>${fmt(wdAvail())}</b>`).replace('\u0002', `<b>${fmt(wl)}</b>`);
+  // always visible: how much of the balance can be withdrawn right now (only money that went through the game)
+  const bold = (key, vars) => esc(t(key, Object.fromEntries(Object.keys(vars).map((k, i) => [k, String.fromCharCode(1 + i)]))))
+    .replace(/[\u0001-\u0004]/g, ch => `<b>${vars[Object.keys(vars)[ch.charCodeAt(0) - 1]]}</b>`);
+  $('#pfLock').hidden = false;
+  $('#pfLock').innerHTML = bold('pr.avail', {a: fmt(wdAvail())}) + (wl > 0 ? ' · ' + bold('pr.lockmore', {w: fmt(wl)}) : '');
+  $('#wdTotal').innerHTML = bold('wd.total', {b: fmt(wallet.real)});
   $('#wdLock').hidden = !(wl > 0);
   if (wl > 0) $('#wdLock').textContent = t('wd.rule', {w: fmt(wl)});
 }
@@ -3386,10 +3393,17 @@ Object.assign(I18N.ru, {
   'wd.rule': 'Вывести можно только то, что прошло через игру: пополнения и награды сначала нужно поставить в PvP, а выигрыши выводятся сразу. Осталось поставить: {w} Gram.',
   'err.not_wagered': 'Сейчас можно вывести до {a} Gram. Поставьте в PvP ещё {w} Gram, чтобы открыть остальное.'
 });
+
+Object.assign(I18N.en, {
+  'pr.avail': 'Available to withdraw: {a} Gram', 'pr.lockmore': 'bet {w} more in PvP to unlock the rest', 'wd.total': 'Total balance: {b} Gram'
+});
+Object.assign(I18N.ru, {
+  'pr.avail': 'Доступно к выводу: {a} Gram', 'pr.lockmore': 'поставьте ещё {w} в PvP, чтобы открыть остальное', 'wd.total': 'Всего на балансе: {b} Gram'
+});
 const TG_ERRORS = {tg_required: 'tg.required', tg_bad_sign: 'tg.bad_sign', tg_expired: 'tg.expired', tg_no_user: 'tg.no_user', no_bot_token: 'tg.no_token'};
 const tgErr = m => TG_ERRORS[m] ? t(TG_ERRORS[m]) : m;
 /* every deploy bumps BUILD here and in version.json; open games notice and reload between rounds */
-const BUILD = '2026-10-27.2';
+const BUILD = '2026-10-27.3';
 let pendingVersion = null;
 async function checkVersion(){
   try {
