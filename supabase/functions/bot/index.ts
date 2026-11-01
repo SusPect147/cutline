@@ -73,7 +73,7 @@ const T = {
     off: "Реферальная программа сейчас на паузе. Следи за новостями в канале!",
     refMsg: (i: RefInfo) =>
       `<b>Реферальная программа</b>\n\nТвоя ссылка для друзей:\n${esc(i.link)}\n\n` +
-      `Друг засчитывается, когда пополнит баланс от ${num(i.min_deposit)} TON и поставит в PvP от ${num(i.min_wager)} TON.\n\n` +
+      `Друг засчитывается, когда пополнит баланс на ${num(i.min_deposit)} TON и его ставки в PvP принесут игре ${num(i.min_fee)} TON комиссии (примерно ${num(i.rounds_hint)} раундов).\n\n` +
       `<b>Награды</b>\n` + i.ladder.map((s) => `${s.claimed ? "✅" : "▫️"} ${num(s.goal)} ${plural(Number(s.goal))} — ${num(s.reward)} TON`).join("\n") +
       `\n\nПриглашено: ${i.friends.total}, засчитано: <b>${i.friends.ok}</b>.\nНаграду забирай в игре, во вкладке «Задания».`,
   },
@@ -94,7 +94,7 @@ const T = {
     off: "The invite programme is paused right now. Watch the channel for news!",
     refMsg: (i: RefInfo) =>
       `<b>Invite friends</b>\n\nYour link:\n${esc(i.link)}\n\n` +
-      `A friend counts after depositing at least ${num(i.min_deposit)} TON and betting at least ${num(i.min_wager)} TON in PvP.\n\n` +
+      `A friend counts after depositing ${num(i.min_deposit)} TON and once their PvP bets have brought the game ${num(i.min_fee)} TON of commission (about ${num(i.rounds_hint)} rounds).\n\n` +
       `<b>Rewards</b>\n` + i.ladder.map((s) => `${s.claimed ? "✅" : "▫️"} ${num(s.goal)} friends — ${num(s.reward)} TON`).join("\n") +
       `\n\nInvited: ${i.friends.total}, counted: <b>${i.friends.ok}</b>.\nClaim rewards in the game, on the Tasks tab.`,
   },
@@ -106,7 +106,7 @@ function plural(n: number) {
   return "друзей";
 }
 type RefInfo = {
-  enabled: boolean; account: boolean; link: string; min_deposit: number; min_wager: number;
+  enabled: boolean; account: boolean; link: string; min_deposit: number; min_fee: number; rounds_hint: number;
   friends: { total: number; ok: number }; ladder: { goal: number; reward: number; claimed: boolean }[];
 };
 
