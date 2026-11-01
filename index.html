@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="script-src 'self' https://telegram.org https://cdn.jsdelivr.net https://unpkg.com 'sha256-PdokYD6+QtYgE0aeLfVmubehq4OsdxMNhTzodPj97Qs=' 'sha256-geK4AnV4wakb4hymjq2+G7vBj6y5rlsIvrAgUyQDqUI='; object-src 'none'; base-uri 'self'; form-action 'none'"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>[hidden]{display:none!important}body{margin:0}</style>
+<meta http-equiv="Content-Security-Policy" content="script-src 'self' https://telegram.org https://cdn.jsdelivr.net https://unpkg.com 'sha256-eOiq7T6KTpVwCxGrg1Hw2U+TwOUpHqIqWA3MikmJZJw=' 'sha256-aMJLgdsrWEm4TpXtaCJ5JAG+RocVjNk0T8llqGuOweA='; object-src 'none'; base-uri 'self'; form-action 'none'"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>[hidden]{display:none!important}body{margin:0}</style>
 <title>CUTLINE</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="description" content="CUTLINE — online game: bets buy territory, the field gets cut until one owner is left.">
@@ -410,16 +410,39 @@ button:disabled{cursor:not-allowed}
 @media (prefers-reduced-motion: reduce){ .faucet.in,.faucet.out{animation:none;opacity:1} }
 .test-state.is-warn{color:#ff9b8a}
 .chip.txt{font-family:inherit;font-size:11.5px;letter-spacing:-.01em}
-/* ---------- loading screen: just the mark, the name and a thin progress line ---------- */
-#splash{position:fixed;inset:0;z-index:100;background:#0b0c0b;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;transition:opacity .35s ease,visibility .35s}
-#splash.out{opacity:0;visibility:hidden}
-.sp-logo{width:44px;height:44px;border-radius:10px;display:block}
-.sp-word{font-weight:800;font-size:17px;letter-spacing:.16em;padding-left:.16em;color:#f4f6f3}
-.sp-tag{margin-top:-8px;font-size:12px;font-weight:500;color:rgba(244,246,243,.45)}
-.sp-bar{margin-top:10px;width:96px;height:2px;border-radius:1px;background:rgba(255,255,255,.08);overflow:hidden;position:relative}
-.sp-bar i{position:absolute;top:0;bottom:0;width:35%;background:#34e27a;animation:spBar 1.2s ease-in-out infinite}
-@keyframes spBar{from{left:-35%}to{left:100%}}
-@media (prefers-reduced-motion: reduce){ .sp-bar i{animation:none;left:0;width:100%;opacity:.5} }
+/* ---------- loading screen: the mark splits along the cut, a light runs down the knife line ---------- */
+html.booting,html.booting body{overflow:hidden;height:100%}
+html{scrollbar-width:none}
+html::-webkit-scrollbar,body::-webkit-scrollbar{width:0;height:0;display:none}
+#splash{position:fixed;inset:0;z-index:100;background:#060706;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;
+  overscroll-behavior:none;touch-action:none;transition:opacity .45s ease,visibility .45s,transform .45s ease}
+#splash.out{opacity:0;visibility:hidden;transform:scale(1.04)}
+.sp-grid{position:absolute;inset:-40px;background-image:radial-gradient(rgba(225,240,228,.07) 1px,transparent 1.2px);background-size:22px 22px;
+  -webkit-mask-image:radial-gradient(circle at 50% 46%,#000 0,rgba(0,0,0,.6) 30%,transparent 62%);mask-image:radial-gradient(circle at 50% 46%,#000 0,rgba(0,0,0,.6) 30%,transparent 62%);
+  animation:spDrift 14s linear infinite}
+.sp-glow{position:absolute;left:50%;top:44%;width:340px;height:340px;margin:-170px 0 0 -170px;border-radius:50%;
+  background:radial-gradient(circle,rgba(52,226,122,.22) 0,rgba(52,226,122,.07) 38%,transparent 68%);filter:blur(6px);animation:spPulse 2.6s ease-in-out infinite}
+.sp-center{position:relative;display:flex;flex-direction:column;align-items:center;gap:16px;margin-top:-4vh;animation:spIn .7s cubic-bezier(.2,.9,.3,1) both}
+.sp-logo{width:88px;height:88px;display:block;overflow:visible;filter:drop-shadow(0 10px 28px rgba(52,226,122,.25))}
+.sp-a,.sp-b{transform-box:view-box;transform-origin:center;animation:spSplit 2.6s cubic-bezier(.6,0,.3,1) infinite}
+.sp-b{animation-name:spSplitB}
+.sp-knife{stroke-dasharray:46 200;stroke-dashoffset:200;animation:spKnife 2.6s cubic-bezier(.6,0,.3,1) infinite}
+.sp-word{font-weight:800;font-size:24px;letter-spacing:.14em;padding-left:.14em;color:#f4f6f3;line-height:1}
+.sp-word i{font-style:normal;color:#34e27a;margin:0 .04em}
+.sp-tag{margin-top:-6px;font-size:13px;font-weight:500;color:rgba(244,246,243,.5);letter-spacing:.01em}
+.sp-foot{position:absolute;left:0;right:0;bottom:calc(34px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;align-items:center;gap:12px}
+.sp-dots{display:flex;gap:7px}
+.sp-dots i{width:6px;height:6px;border-radius:50%;background:#34e27a;opacity:.25;animation:spDot 1.2s ease-in-out infinite}
+.sp-dots i:nth-child(2){animation-delay:.15s}.sp-dots i:nth-child(3){animation-delay:.3s}
+.sp-ton{font-size:10.5px;font-weight:700;letter-spacing:.22em;color:rgba(244,246,243,.28)}
+@keyframes spIn{from{opacity:0;transform:translateY(10px) scale(.96)}to{opacity:1;transform:none}}
+@keyframes spSplit{0%,18%{transform:none}42%,70%{transform:translate(-5px,-5px)}92%,100%{transform:none}}
+@keyframes spSplitB{0%,18%{transform:none}42%,70%{transform:translate(5px,5px)}92%,100%{transform:none}}
+@keyframes spKnife{0%{stroke-dashoffset:200;opacity:0}10%{opacity:1}45%{stroke-dashoffset:-30;opacity:1}55%,100%{stroke-dashoffset:-30;opacity:0}}
+@keyframes spPulse{0%,100%{opacity:.75;transform:scale(.96)}50%{opacity:1;transform:scale(1.04)}}
+@keyframes spDot{0%,80%,100%{opacity:.25;transform:scale(.85)}40%{opacity:1;transform:scale(1.1)}}
+@keyframes spDrift{from{transform:translateY(0)}to{transform:translateY(22px)}}
+@media (prefers-reduced-motion: reduce){ .sp-a,.sp-b,.sp-knife,.sp-glow,.sp-grid,.sp-center,.sp-dots i{animation:none} .sp-knife{opacity:0} .sp-dots i{opacity:.6} }
 
 /* ---------- bottom navigation: PvP / ForFun / Profile ---------- */
 :root{--nav-h:64px}
@@ -620,7 +643,7 @@ body.room-real .rules .fair{margin-top:0;padding-top:0;border-top:0}
 .wd-total b{font-family:var(--font-num);color:var(--fg)}
 
 /* bet buttons: each can be changed with the pencil above it */
-.tray{padding-top:13px}
+.tray{padding-top:10px}
 .chips>.chip-cell{position:relative;min-width:0;display:flex}
 .chip-cell>.chip{flex:1;width:100%}
 .chip .chip-n{min-width:0;overflow:hidden;text-overflow:clip}
@@ -629,7 +652,7 @@ body.room-real .rules .fair{margin-top:0;padding-top:0;border-top:0}
 .chip.long{font-size:11px;padding:0 2px}
 .chip.xlong{font-size:10.5px;padding:0 1px}
 .chip.long .gem,.chip.xlong .gem{display:none}
-.chip-edit{position:absolute;z-index:2;top:-10px;right:-1px;width:19px;height:19px;border-radius:50%;padding:0;display:grid;place-items:center;
+.chip-edit{position:absolute;z-index:2;top:-6px;right:-5px;width:19px;height:19px;border-radius:50%;padding:0;display:grid;place-items:center;
   background:linear-gradient(180deg,#2a2f2a,#171a17);border:1px solid rgba(255,255,255,.16);color:rgba(244,246,243,.8);
   box-shadow:0 2px 6px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.1);transition:transform .15s,color .2s,border-color .2s}
 .chip-edit svg{width:10px;height:10px}
@@ -637,7 +660,7 @@ body.room-real .rules .fair{margin-top:0;padding-top:0;border-top:0}
 .chip-edit:hover,.chip-edit:focus-visible{color:#fff;border-color:rgba(52,226,122,.6)}
 .chip-edit:active{transform:scale(.88)}
 .chip[aria-pressed="true"]+.chip-edit{color:#34e27a;border-color:rgba(52,226,122,.45)}
-@media (max-width:370px){ .chip-edit{width:17px;height:17px;top:-9px} .chip-edit svg{width:9px;height:9px} }
+@media (max-width:370px){ .chip-edit{width:17px;height:17px;top:-5px;right:-4px} .chip-edit svg{width:9px;height:9px} }
 
 /* sheets: drag down by the handle or the header */
 .sheet .grabber{position:relative;cursor:grab;touch-action:none}
@@ -648,12 +671,25 @@ body.room-real .rules .fair{margin-top:0;padding-top:0;border-top:0}
 </style>
 </head><body>
 <div id="splash" aria-hidden="true">
-  <svg class="sp-logo" viewBox="0 0 120 120"><rect width="120" height="120" rx="26" fill="#151815"/><polygon points="28,28 92,28 28,92" fill="#f2f4f1"/><polygon points="92,32 92,92 32,92" fill="#34e27a"/></svg>
-  <div class="sp-word">CUTLINE</div>
-  <div class="sp-tag" id="spTag">Cut the field. Take the pot.</div>
-  <div class="sp-bar"><i></i></div>
+  <div class="sp-grid"></div>
+  <div class="sp-glow"></div>
+  <div class="sp-center">
+    <svg class="sp-logo" viewBox="0 0 120 120">
+      <defs>
+        <linearGradient id="spW" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#cfd6cf"/></linearGradient>
+        <linearGradient id="spGr" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5df2a0"/><stop offset="1" stop-color="#22c063"/></linearGradient>
+        <linearGradient id="spK" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#34e27a" stop-opacity="0"/><stop offset=".5" stop-color="#eafff2"/><stop offset="1" stop-color="#34e27a" stop-opacity="0"/></linearGradient>
+      </defs>
+      <g class="sp-a"><polygon points="22,22 94,22 22,94" fill="url(#spW)"/></g>
+      <g class="sp-b"><polygon points="98,26 98,98 26,98" fill="url(#spGr)"/></g>
+      <line class="sp-knife" x1="6" y1="114" x2="114" y2="6" stroke="url(#spK)" stroke-width="3" stroke-linecap="round"/>
+    </svg>
+    <div class="sp-word">CUT<i>/</i>LINE</div>
+    <div class="sp-tag" id="spTag">Cut the field. Take the pot.</div>
+  </div>
+  <div class="sp-foot"><span class="sp-dots"><i></i><i></i><i></i></span><span class="sp-ton">PvP · TON</span></div>
 </div>
-<script>try{if(JSON.parse(localStorage.getItem('cutline.lang'))==='ru')document.getElementById('spTag').textContent='Режь поле. Забирай пул.';}catch(e){}</script>
+<script>document.documentElement.classList.add('booting');try{if(JSON.parse(localStorage.getItem('cutline.lang'))==='ru')document.getElementById('spTag').textContent='Режь поле. Забирай пул.';}catch(e){}</script>
 <div class="app" id="gameView">
   <header class="top">
     <div class="brand">
@@ -911,7 +947,7 @@ body.room-real .rules .fair{margin-top:0;padding-top:0;border-top:0}
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js" integrity="sha384-TcHRA3zBbn+Lexh5n+Oil4guNPOS3rjNDpGRAN46u/s/mB2IZ50ceC6TYDU2yvgK" crossorigin="anonymous"></script>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script src="core.js?v=2026-11-01.2"></script>
+<script src="core.js?v=2026-11-01.3"></script>
 <script>
 'use strict';
 (function(){
@@ -1276,21 +1312,23 @@ function makeTile(base, pattern){
 
 
 /* ---------- state ---------- */
-/* the four bet buttons: the player can change each one (pencil); saved on this device */
-const CHIP_MIN = 0.1, CHIP_MAX = 10000000;
+/* five bet buttons: the player can change each one (pencil). Saved on this device and in Telegram's cloud for this user */
+const CHIP_DEFAULTS = [1, 5, 10, 50, 100], CHIP_MIN = 0.1, CHIP_MAX = 10000000;
 const okChip = v => typeof v === 'number' && isFinite(v) && v >= CHIP_MIN && v <= CHIP_MAX;
-let chips = (() => {
-  const s = store.get('cutline.chips', null);
-  return Array.isArray(s) && s.length === CHIPS.length && s.every(okChip) ? s.map(r2) : CHIPS.slice();
-})();
+const okChipKey = k => /^c[0-4]$/.test(k) || k === 'all';
+/* a saved list: 5 numbers; an older list of 4 gets the fifth default button */
+function normChips(s){
+  if (!Array.isArray(s) || !s.every(okChip)) return null;
+  if (s.length === 4) s = s.concat(CHIP_DEFAULTS[4]);
+  return s.length === CHIP_DEFAULTS.length ? s.map(r2) : null;
+}
+let chips = normChips(store.get('cutline.chips', null)) || CHIP_DEFAULTS.slice();
 let chipKey = String(store.get('cutline.chipKey', 'c0'));
 { const old = CHIPS.map(String).indexOf(chipKey); if (old >= 0) chipKey = 'c' + old; }   // saved before buttons were editable
-let customAmt = Number(store.get('cutline.custom', 0)) || 0;
-if (!(/^c[0-3]$/.test(chipKey) || chipKey === 'all' || chipKey === 'custom') || (chipKey === 'custom' && !(customAmt >= 0.1))) chipKey = 'c0';
-/* what the bet button stakes right now: a bet button, the whole balance, or the player's own number */
+if (!okChipKey(chipKey)) chipKey = 'c0';                                                  // incl. the removed «Своя»
+/* what the bet button stakes right now: a bet button or the whole balance */
 function betAmount(){
   if (chipKey === 'all') return Math.floor(Math.max(0, curBal()) * 100 + 1e-6) / 100;
-  if (chipKey === 'custom') return customAmt;
   return chips[Number(chipKey.slice(1))] || chips[0];
 }
 let auto = false;
@@ -1911,7 +1949,7 @@ function renderChips(){
         `<button class="chip-edit" data-i="${i}" aria-label="${esc(t('chip.edit', {x: fmtFull(v)}))}">${PENCIL}</button>`,
         t('chip.title', {x: fmtFull(v)}));
     }).join('') +
-    cell('all', esc(t('chip.all')), ' txt', '') + cell('custom', esc(t('chip.custom')), ' txt', '');
+    cell('all', esc(t('chip.all')), ' txt', '');
   placeLens(true);
 }
 /* the glass lens slides (with a little overshoot) to the selected chip */
@@ -1929,25 +1967,52 @@ if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => plac
 $('#chips').addEventListener('click', e => {
   const ed = e.target.closest('.chip-edit'); if (ed){ openAmt(Number(ed.dataset.i)); return; }
   const btn = e.target.closest('.chip'); if (!btn) return;
-  if (btn.dataset.k === 'custom'){ openAmt(); return; }
   selectChip(btn.dataset.k);
 });
 function selectChip(k){
-  chipKey = k; store.set('cutline.chipKey', k);
+  chipKey = k; saveChips();
   document.querySelectorAll('.chip').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.k === k)));
   placeLens(false); updateDock();
 }
 
-/* one sheet for «Своя» (a one-off amount, not more than the balance) and for changing a bet button (any amount 0.1…10 000 000) */
-let amtEdit = null;                 // index of the bet button being changed, or null for «Своя»
+/* saved twice: on this device, and in Telegram's cloud storage for this user (survives a cleared WebView and works on every device) */
+const tgCloud = () => {
+  const w = window.Telegram && window.Telegram.WebApp;
+  return w && w.CloudStorage && w.isVersionAtLeast && w.isVersionAtLeast('6.9') ? w.CloudStorage : null;
+};
+let cloudTimer = 0;
+function saveChips(){
+  store.set('cutline.chips', chips); store.set('cutline.chipKey', chipKey);
+  const c = tgCloud(); if (!c) return;
+  clearTimeout(cloudTimer);
+  cloudTimer = setTimeout(() => { try { c.setItem('bet_buttons', JSON.stringify({c: chips, k: chipKey})); } catch(_){} }, 400);
+}
+function loadCloudChips(){
+  const c = tgCloud(); if (!c) return;
+  try {
+    c.getItem('bet_buttons', (err, v) => {
+      if (err) return;
+      let o = null; try { o = v ? JSON.parse(v) : null; } catch(_){}
+      const arr = o && normChips(o.c);
+      if (!arr){ if (store.get('cutline.chips', null)) saveChips(); return; }   // nothing in the cloud yet: put this device's buttons there
+      chips = arr; if (okChipKey(o.k)) chipKey = o.k;
+      store.set('cutline.chips', chips); store.set('cutline.chipKey', chipKey);
+      renderChips(); updateDock();
+    });
+  } catch(_){}
+}
+setTimeout(loadCloudChips, 0);
+
+/* changing a bet button: any amount 0.1…10 000 000 */
+let amtEdit = 0;
 function openAmt(i){
-  amtEdit = Number.isInteger(i) ? i : null;
+  amtEdit = Number.isInteger(i) ? i : 0;
   $('#amtSheet').hidden = false;
-  const inp = $('#amtInput'), v = amtEdit === null ? customAmt : chips[amtEdit];
-  inp.value = v >= 0.1 ? fmt(v) : '';
-  $('#amtTitle').textContent = t(amtEdit === null ? 'amt.title' : 'amt.edit');
+  const inp = $('#amtInput');
+  inp.value = fmt(chips[amtEdit]);
+  $('#amtTitle').textContent = t('amt.edit');
   $('#amtHint').classList.remove('is-warn');
-  $('#amtHint').textContent = amtEdit === null ? t('amt.hint', {b: fmt(curBal())}) : t('amt.edit.hint');
+  $('#amtHint').textContent = t('amt.edit.hint');
   setTimeout(() => { inp.focus(); inp.select(); }, 60);
 }
 /* only a number: digits and one dot (a comma becomes a dot), at most 2 decimals and 8 digits before the dot */
@@ -1964,18 +2029,11 @@ function confirmAmt(){
   const bad = msg => { hint.textContent = msg; hint.classList.add('is-warn'); };
   if (!raw || raw === '.' || !isFinite(v)) return bad(t('amt.nan'));
   if (v < CHIP_MIN) return bad(t('amt.min'));
-  if (amtEdit !== null){
-    if (v > CHIP_MAX) return bad(t('amt.max'));
-    chips[amtEdit] = v; store.set('cutline.chips', chips);
-    const k = 'c' + amtEdit;
-    $('#amtSheet').hidden = true;
-    renderChips(); selectChip(k);
-    return;
-  }
-  if (v > curBal() + 1e-9) return bad(t('amt.nofunds', {b: fmt(curBal())}));
-  customAmt = v; store.set('cutline.custom', v);
+  if (v > CHIP_MAX) return bad(t('amt.max'));
+  chips[amtEdit] = v;
   $('#amtSheet').hidden = true;
-  selectChip('custom');
+  chipKey = 'c' + amtEdit;
+  renderChips(); selectChip(chipKey);
 }
 $('#amtOk').addEventListener('click', confirmAmt);
 $('#amtInput').addEventListener('input', e => {
@@ -3467,8 +3525,10 @@ function renderQuests(){
     $('#qRefList').innerHTML = `<li class="empty">${esc(t('q.loading'))}</li>`; $('#qTaskList').innerHTML = '';
     $('#qRefRule').textContent = ''; $('#qLink').textContent = '…'; return;
   }
-  const f = quests.friends || {}, mw = Number(quests.friend_min_wager) || 0.2;
-  $('#qRefRule').textContent = t('q.ref.rule2', {w: fmt(mw)});
+  const f = quests.friends || {};
+  $('#qRefRule').textContent = quests.friend_min_fee != null
+    ? t('q.ref.rule3', {d: fmt(Number(quests.friend_min_deposit) || 0.5), f: fmt(Number(quests.friend_min_fee)), r: Number(quests.friend_rounds_hint) || 10})
+    : t('q.ref.rule2', {w: fmt(Number(quests.friend_min_wager) || 0.2)});
   $('#qInvited').textContent = Number(f.total) || 0;
   $('#qCounted').textContent = Number(f.ok) || 0;
   $('#qLink').textContent = quests.link || '—';
@@ -3561,10 +3621,12 @@ async function resumeSession(tg){
   } catch(e){ return null; }
 }
 Object.assign(I18N.en, {
-  'q.ref.rule2': 'A friend counts after betting at least {w} Gram in PvP.', 'tg.slow': 'Too many attempts. Wait a minute and open the game again.'
+  'q.ref.rule2': 'A friend counts after betting at least {w} Gram in PvP.',
+  'q.ref.rule3': 'A friend counts after depositing {d} Gram and once their PvP bets have brought the game {f} Gram of commission (about {r} rounds).', 'tg.slow': 'Too many attempts. Wait a minute and open the game again.'
 });
 Object.assign(I18N.ru, {
-  'q.ref.rule2': 'Друг засчитывается, когда поставит в PvP от {w} Gram.', 'tg.slow': 'Слишком много попыток. Подождите минуту и откройте игру снова.'
+  'q.ref.rule2': 'Друг засчитывается, когда поставит в PvP от {w} Gram.',
+  'q.ref.rule3': 'Друг засчитывается, когда пополнит баланс на {d} Gram и его ставки в PvP принесут игре {f} Gram комиссии (примерно {r} раундов).', 'tg.slow': 'Слишком много попыток. Подождите минуту и откройте игру снова.'
 });
 
 document.addEventListener('click', e => {
@@ -3576,7 +3638,7 @@ document.addEventListener('click', e => {
 const TG_ERRORS = {tg_required: 'tg.required', tg_bad_sign: 'tg.bad_sign', tg_expired: 'tg.expired', tg_no_user: 'tg.no_user', no_bot_token: 'tg.no_token', rate_limited: 'tg.slow'};
 const tgErr = m => TG_ERRORS[m] ? t(TG_ERRORS[m]) : m;
 /* every deploy bumps BUILD here and in version.json; open games notice and reload between rounds */
-const BUILD = '2026-11-01.2';
+const BUILD = '2026-11-01.3';
 let pendingVersion = null;
 async function checkVersion(){
   try {
@@ -3601,7 +3663,7 @@ setInterval(checkVersion, 60000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) checkVersion(); });
 function hideSplash(){
   const sp = $('#splash'); if (!sp || sp.classList.contains('out')) return;
-  setTimeout(() => { sp.classList.add('out'); setTimeout(() => sp.remove(), 500); }, Math.max(0, 700 - performance.now()));
+  setTimeout(() => { sp.classList.add('out'); document.documentElement.classList.remove('booting'); setTimeout(() => sp.remove(), 600); }, Math.max(0, 900 - performance.now()));
 }
 function bootCard(html){
   const b = $('#bootBox'); b.hidden = false;
