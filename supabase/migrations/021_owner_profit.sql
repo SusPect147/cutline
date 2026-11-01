@@ -6,7 +6,8 @@
 -- So the owner never takes players' money (1), and never more than the game has actually earned (2): rewards are paid
 -- out of the commission, a transfer that arrived but is not counted yet is not "profit", and a top-up the owner made to
 -- cover players stays in the wallet.
--- Task rewards are paid only while the profit (2) covers them, so rewards can never eat into players' money either.
+-- Task rewards are paid only while the profit (2) covers them, so rewards can never eat into players' money either;
+-- HOUSE top-ups count towards it, so the owner can fund rewards by topping the wallet up.
 
 -- the owner can top the wallet up without that money looking like a player's: a transfer with the comment HOUSE
 -- is the owner's own capital (not owed to anyone), and the owner may take it back later.
@@ -18,6 +19,7 @@ create or replace function private.house_earned() returns numeric
 language sql stable security definer set search_path = '' as $$
   select (select coalesce(sum(fee), 0) from public.rounds where room = 'real' and status = 'settled')
        + (select coalesce(sum(fee), 0) from private.withdrawals where kind = 'player' and status = 'paid')
+       + (select coalesce(sum(amount_nano), 0) / 1000000000 from private.deposits where status = 'house')
        - (select coalesce(sum(amount), 0) from private.quest_claims)
        - (select coalesce(sum(amount), 0) from private.withdrawals where kind = 'owner' and status in ('pending', 'paid'))
 $$;
@@ -30,8 +32,7 @@ begin
   select value into cfg from public.app_config where key = 'wallet';
   reserve := coalesce((cfg->>'owner_reserve')::numeric, 1);
   obl := private.obligations();
-  earned := private.house_earned()
-          + (select coalesce(sum(amount_nano), 0) / 1000000000 from private.deposits where status = 'house');
+  earned := private.house_earned();
   chain := case when p_chain_nano is null then null else p_chain_nano / 1000000000 end;
   free := case when chain is null then null else chain - obl - reserve end;
   return jsonb_build_object(
