@@ -1,5 +1,6 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>[hidden]{display:none!important}body{margin:0}</style>
+<html lang="en"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="script-src 'self' https://telegram.org https://cdn.jsdelivr.net https://unpkg.com 'sha256-PdokYD6+QtYgE0aeLfVmubehq4OsdxMNhTzodPj97Qs=' 'sha256-hYuuCt5SklO4snJ2VfBWht7uCggJ+fKD2joImBcQjGg='; object-src 'none'; base-uri 'self'; form-action 'none'"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>[hidden]{display:none!important}body{margin:0}</style>
 <title>CUTLINE</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="description" content="CUTLINE — online game: bets buy territory, the field gets cut until one owner is left.">
@@ -429,7 +430,7 @@ body.on-profile .dock,body.on-profile #gameView{display:none!important}
 .dock::after{display:none}
 .nav{position:fixed;left:0;right:0;bottom:0;z-index:6;padding:0 max(12px, env(safe-area-inset-right,0px)) calc(8px + env(safe-area-inset-bottom,0px)) max(12px, env(safe-area-inset-left,0px));pointer-events:none}
 .nav::before{content:"";position:absolute;left:0;right:0;bottom:0;height:calc(100% + 30px);background:linear-gradient(180deg,rgba(6,7,6,0),rgba(6,7,6,.9) 45%,var(--bg));z-index:-1}
-.nav-in{position:relative;max-width:452px;height:56px;margin:0 auto;border-radius:22px;padding:4px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;pointer-events:auto}
+.nav-in{position:relative;max-width:452px;height:56px;margin:0 auto;border-radius:22px;padding:4px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;pointer-events:auto}
 .nav-btn{position:relative;z-index:1;border-radius:18px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:rgba(244,246,243,.48);font-size:11px;font-weight:700;letter-spacing:.01em;transition:color .25s}
 .nav-btn svg{width:23px;height:23px;transition:transform .35s cubic-bezier(.3,1.6,.5,1)}
 .nav-btn[aria-current="page"]{color:#fff}
@@ -741,7 +742,7 @@ body.room-real .rules .fair{margin-top:0;padding-top:0;border-top:0}
     <div class="pf-stat"><span class="lbl" data-i18n="pr.best">Best win</span><b><span id="stBest">0</span><span class="gram-slot"></span></b></div>
     <div class="pf-stat"><span class="lbl" data-i18n="pr.wagered">Wagered</span><b><span id="stWag">0</span><span class="gram-slot"></span></b></div>
   </section>
-  <div class="pf-fun"><span data-i18n="pr.fun">ForFun balance</span><b><span id="pfFun">0</span><span class="fun-slot"></span></b></div>
+  <div class="pf-fun" style="display:none"><span data-i18n="pr.fun">ForFun balance</span><b><span id="pfFun">0</span><span class="fun-slot"></span></b></div>
   <section class="panel">
     <h2 data-i18n="pr.ops">Transactions</h2>
     <ul class="ops" id="pfOps"></ul>
@@ -798,10 +799,6 @@ body.room-real .rules .fair{margin-top:0;padding-top:0;border-top:0}
     <button class="nav-btn" data-tab="pvp" aria-current="page">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path class="ni-fill" d="M3 3h3l11.5 11.5-3 3L3 6z"/><path d="M14.5 17.5 3 6V3h3l11.5 11.5"/><path class="ni-accent" d="M13 19l6-6M16 16l4 4M19 21l2-2"/><path d="M14.5 6.5 18 3h3v3l-3.5 3.5"/><path class="ni-accent" d="M5 14l4 4M7 17l-3 3M3 19l2 2"/></svg>
       <span data-i18n="tab.pvp">PvP</span>
-    </button>
-    <button class="nav-btn" data-tab="fun">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path class="ni-fill" d="M17.3 5H6.7a4 4 0 0 0-4 3.6C2.6 9.4 2 14.5 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.4-1.4A2 2 0 0 1 9.8 16h4.4a2 2 0 0 1 1.4.6L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.5-.6-6.6-.7-7.3a4 4 0 0 0-4-3.7z"/><path class="ni-accent" d="M6 11h4M8 9v4"/><path d="M15 12h.01M18 10h.01"/></svg>
-      <span data-i18n="tab.fun">ForFun</span>
     </button>
     <button class="nav-btn" data-tab="quests">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect class="ni-fill" x="4" y="3.5" width="16" height="17" rx="3.5"/><path class="ni-accent" d="M8 9.2l1.7 1.7 3-3.2"/><path d="M15 9.5h1.5"/><path class="ni-accent" d="M8 15.2l1.7 1.7 3-3.2"/><path d="M15 15.5h1.5"/></svg>
@@ -884,9 +881,9 @@ body.room-real .rules .fair{margin-top:0;padding-top:0;border-top:0}
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js" integrity="sha384-GFr3yTh5lJznCbZfpTtXnwboFsxqtTQoeTZCRHhE0579KrRmlCzen5AA8ohaB5ug" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js" integrity="sha384-TcHRA3zBbn+Lexh5n+Oil4guNPOS3rjNDpGRAN46u/s/mB2IZ50ceC6TYDU2yvgK" crossorigin="anonymous"></script>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script src="core.js?v=2026-10-27.4"></script>
+<script src="core.js?v=2026-11-01.1"></script>
 <script>
 'use strict';
 (function(){
@@ -2805,7 +2802,7 @@ Object.assign(I18N.ru, {
 });
 
 /* ---------- sections: PvP (real Gram), ForFun (test money), Profile ---------- */
-const TABS = ['pvp', 'fun', 'quests', 'profile'];
+const TABS = ['pvp', 'quests', 'profile'];      // ForFun is switched off
 function placeNavLens(){
   const lens = $('#navLens'), btn = document.querySelector(`.nav-btn[data-tab="${tab}"]`);
   if (!lens || !btn || !btn.offsetWidth) return;
@@ -2826,7 +2823,7 @@ function setTab(next){
   window.scrollTo(0, 0);
   if (isProf){ shakeStop(); renderProfile(); loadProfile(); return; }
   if (isQ){ shakeStop(); renderQuests(); loadQuests(); return; }
-  switchRoom(next === 'pvp' ? 'real' : 'fun');
+  switchRoom('real');
   requestAnimationFrame(() => { resize(); placeLens(true); });
 }
 document.querySelectorAll('.nav-btn').forEach(b => b.addEventListener('click', () => { setTab(b.dataset.tab); try { window.Telegram.WebApp.HapticFeedback.selectionChanged(); } catch(e){} }));
@@ -2887,7 +2884,8 @@ function openLink(url){
   window.open(url, '_blank', 'noopener');
 }
 function sheetMsg(el, html, cls){ el.innerHTML = html; el.className = 'sheet-msg' + (cls ? ' ' + cls : ''); }
-const supportLink = () => (walletInfo && walletInfo.support) || 'https://t.me/hammer147';
+// support lives in the bot: this link opens the chat and the bot asks for the request right away
+const supportLink = () => 'https://t.me/' + BOT + '?start=support';
 const supportA = () => ` <a href="${esc(supportLink())}" target="_blank" rel="noopener">${esc(t('pr.support'))}</a>`;
 /* auto-width amount inputs (monospace: one ch per character) */
 function sizeAmt(inp){ inp.style.width = Math.max(1, Math.min(10, (inp.value || inp.placeholder || '0').length)) + 'ch'; }
@@ -3427,10 +3425,17 @@ Object.assign(I18N.en, {
 Object.assign(I18N.ru, {
   'q.ref.rule2': 'Друг засчитывается, когда поставит в PvP от {w} Gram.', 'tg.slow': 'Слишком много попыток. Подождите минуту и откройте игру снова.'
 });
+
+document.addEventListener('click', e => {
+  const a = e.target.closest && e.target.closest('a[href^="https://t.me/"]');
+  if (!a) return;
+  e.preventDefault();
+  openTg(a.href);
+});
 const TG_ERRORS = {tg_required: 'tg.required', tg_bad_sign: 'tg.bad_sign', tg_expired: 'tg.expired', tg_no_user: 'tg.no_user', no_bot_token: 'tg.no_token', rate_limited: 'tg.slow'};
 const tgErr = m => TG_ERRORS[m] ? t(TG_ERRORS[m]) : m;
 /* every deploy bumps BUILD here and in version.json; open games notice and reload between rounds */
-const BUILD = '2026-10-27.4';
+const BUILD = '2026-11-01.1';
 let pendingVersion = null;
 async function checkVersion(){
   try {
