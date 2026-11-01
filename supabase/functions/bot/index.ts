@@ -264,17 +264,20 @@ async function chainNano(address: string) {
 }
 const kickGame = (action: string) => fetch(`${FN}/game`, { method: "POST", headers: { "Content-Type": "application/json" },
   body: JSON.stringify({ action }), signal: AbortSignal.timeout(15000) }).catch(() => null);
-// how much of the wallet is the owner's: the wallet minus the players' money minus the reserve
+// how much the owner may take: the smaller of (the wallet minus everything owed to players minus the reserve) and
+// (the profit not yet taken: commissions minus task rewards minus earlier owner payouts, plus HOUSE top-ups).
+// The database counts both; the same check runs again when the payout is created.
 async function profitInfo() {
   await kickGame("deposits");          // fresh deposits first, so a just-arrived transfer is counted as the player's
   const w = await houseWallet();
   const { data: s, error } = await db.rpc("stats_summary");
   if (error) throw error;
   const nano = w.address ? await chainNano(String(w.address)) : null;
-  const reserve = Number(w.owner_reserve ?? 1);
-  const bal = nano === null ? null : Number(nano) / 1e9;
-  const avail = bal === null ? null : Math.max(0, Math.floor((bal - Number(s.obligations) - reserve) * 100) / 100);
-  return { s, w, nano, bal, reserve, avail, owner: String(w.owner_address || ""), paused: w.auto_payout === false };
+  const { data: av, error: e2 } = await db.rpc("owner_available", { p_chain_nano: nano === null ? null : nano.toString() });
+  if (e2) throw e2;
+  const n = (v: unknown) => (v === null || v === undefined ? null : Number(v));
+  return { s, w, nano, bal: n(av.chain), reserve: Number(av.reserve), obl: Number(av.obligations), free: n(av.free),
+    earned: Number(av.earned), avail: n(av.available), owner: String(w.owner_address || ""), paused: w.auto_payout === false };
 }
 async function sendStats(chatId: number, editId?: number) {
   const p = await profitInfo(), s = p.s, inc = s.income;
@@ -287,8 +290,10 @@ async function sendStats(chatId: number, editId?: number) {
     `⬆️ Выводы игроков: сегодня ${ton(s.withdrawals.today)}, всего ${ton(s.withdrawals.paid_total)} TON` +
     (s.withdrawals.waiting_owner ? `\n🔔 Ждут вашего решения: <b>${s.withdrawals.waiting_owner}</b>` : "") +
     (s.deposits.unmatched ? `\n❓ Пополнений без кода: ${s.deposits.unmatched}` : "") + `\n\n` +
-    `💰 Кошелёк: ${p.bal === null ? "не удалось узнать" : ton(p.bal) + " TON"} · деньги игроков ${ton(s.obligations)} · запас ${ton(p.reserve)}\n` +
-    `Можно вывести прибыли: <b>${p.avail === null ? "—" : ton(p.avail) + " TON"}</b>\n` +
+    `💰 Кошелёк: ${p.bal === null ? "не удалось узнать" : ton(p.bal) + " TON"} · деньги игроков ${ton(p.obl)} · запас ${ton(p.reserve)}\n` +
+    `Свободно сверх денег игроков: ${p.free === null ? "—" : ton(Math.max(0, p.free)) + " TON"} · прибыль, ещё не выведенная: ${ton(p.earned)} TON\n` +
+    (p.free !== null && p.free < 0 ? `⚠️ В кошельке не хватает ${ton(-p.free)} TON до денег игроков и запаса. Пополните кошелёк игры с комментарием <code>HOUSE</code>.\n` : "") +
+    `Можно вывести прибыли: <b>${p.avail === null ? "—" : ton(p.avail) + " TON"}</b> <i>(меньшее из двух чисел выше)</i>\n` +
     `Выводы игрокам: ${p.paused ? "⛔ остановлены" : "✅ работают"}`;
   const rows: unknown[][] = [];
   if (p.avail !== null && p.avail >= 0.1) {
@@ -357,7 +362,7 @@ async function onAdminButton(q: any) {
     if (p.avail === null || p.avail < 0.1) { await answer("Сейчас нечего выводить"); return await sendStats(ADMIN, msgId); }
     await answer();
     return await tg("sendMessage", { chat_id: ADMIN, parse_mode: "HTML",
-      text: `💸 Вывести <b>${ton(p.avail)} TON</b> прибыли на <code>${esc(p.owner)}</code>?\n\nДеньги игроков (${ton(p.s.obligations)} TON) и запас ${ton(p.reserve)} TON останутся в кошельке.`,
+      text: `💸 Вывести <b>${ton(p.avail)} TON</b> прибыли на <code>${esc(p.owner)}</code>?\n\nДеньги игроков (${ton(p.obl)} TON, включая выигранное с наград за задания) и запас ${ton(p.reserve)} TON останутся в кошельке.`,
       reply_markup: { inline_keyboard: [[{ text: `Да, вывести ${ton(p.avail)} TON`, callback_data: `py:${Math.round(p.avail * 100)}`, style: "success" }, { text: "Отмена", callback_data: "pn" }]] } });
   }
   if (kind === "pn") { await answer("Отменено"); return await setButtons([]); }
