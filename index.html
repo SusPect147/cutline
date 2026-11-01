@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="script-src 'self' https://telegram.org https://cdn.jsdelivr.net https://unpkg.com 'sha256-PdokYD6+QtYgE0aeLfVmubehq4OsdxMNhTzodPj97Qs=' 'sha256-hYuuCt5SklO4snJ2VfBWht7uCggJ+fKD2joImBcQjGg='; object-src 'none'; base-uri 'self'; form-action 'none'"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>[hidden]{display:none!important}body{margin:0}</style>
+<meta http-equiv="Content-Security-Policy" content="script-src 'self' https://telegram.org https://cdn.jsdelivr.net https://unpkg.com 'sha256-PdokYD6+QtYgE0aeLfVmubehq4OsdxMNhTzodPj97Qs=' 'sha256-geK4AnV4wakb4hymjq2+G7vBj6y5rlsIvrAgUyQDqUI='; object-src 'none'; base-uri 'self'; form-action 'none'"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>[hidden]{display:none!important}body{margin:0}</style>
 <title>CUTLINE</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="description" content="CUTLINE — online game: bets buy territory, the field gets cut until one owner is left.">
@@ -618,6 +618,33 @@ body.room-real .rules .fair-h{display:block}
 body.room-real .rules .fair{margin-top:0;padding-top:0;border-top:0}
 .wd-total{margin:6px 2px 0;font-size:12px;color:var(--muted);font-weight:600}
 .wd-total b{font-family:var(--font-num);color:var(--fg)}
+
+/* bet buttons: each can be changed with the pencil above it */
+.tray{padding-top:13px}
+.chips>.chip-cell{position:relative;min-width:0;display:flex}
+.chip-cell>.chip{flex:1;width:100%}
+.chip .chip-n{min-width:0;overflow:hidden;text-overflow:clip}
+.chip.mid{font-size:11.5px;gap:2px;padding:0 2px}
+.chip.mid .gem{width:10px;height:10px}
+.chip.long{font-size:11px;padding:0 2px}
+.chip.xlong{font-size:10.5px;padding:0 1px}
+.chip.long .gem,.chip.xlong .gem{display:none}
+.chip-edit{position:absolute;z-index:2;top:-10px;right:-1px;width:19px;height:19px;border-radius:50%;padding:0;display:grid;place-items:center;
+  background:linear-gradient(180deg,#2a2f2a,#171a17);border:1px solid rgba(255,255,255,.16);color:rgba(244,246,243,.8);
+  box-shadow:0 2px 6px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.1);transition:transform .15s,color .2s,border-color .2s}
+.chip-edit svg{width:10px;height:10px}
+.chip-edit::before{content:"";position:absolute;inset:-9px}
+.chip-edit:hover,.chip-edit:focus-visible{color:#fff;border-color:rgba(52,226,122,.6)}
+.chip-edit:active{transform:scale(.88)}
+.chip[aria-pressed="true"]+.chip-edit{color:#34e27a;border-color:rgba(52,226,122,.45)}
+@media (max-width:370px){ .chip-edit{width:17px;height:17px;top:-9px} .chip-edit svg{width:9px;height:9px} }
+
+/* sheets: drag down by the handle or the header */
+.sheet .grabber{position:relative;cursor:grab;touch-action:none}
+.sheet .grabber::before{content:"";position:absolute;left:-90px;right:-90px;top:-14px;bottom:-10px}
+.sheet .sheet-head{touch-action:none;user-select:none;-webkit-user-select:none}
+.sheet .sheet-head h2{cursor:grab}
+.sheet{will-change:transform}
 </style>
 </head><body>
 <div id="splash" aria-hidden="true">
@@ -868,7 +895,7 @@ body.room-real .rules .fair{margin-top:0;padding-top:0;border-top:0}
 <div class="sheet-back" id="amtSheet" hidden>
   <div class="sheet topup-sheet" role="dialog" aria-modal="true" data-i18n-aria="amt.title">
     <div class="grabber"></div>
-    <div class="sheet-head"><h2 data-i18n="amt.title">Custom bet</h2><button id="amtClose" data-i18n="close">Close</button></div>
+    <div class="sheet-head"><h2 id="amtTitle">Custom bet</h2><button id="amtClose" data-i18n="close">Close</button></div>
     <div class="test-input"><input id="amtInput" type="text" inputmode="decimal" autocomplete="off" data-i18n-ph="amt.ph" data-i18n-aria="amt.ph"><button id="amtOk" data-i18n="done">Done</button></div>
     <p class="test-state" id="amtHint"></p>
   </div>
@@ -876,6 +903,7 @@ body.room-real .rules .fair{margin-top:0;padding-top:0;border-top:0}
 
 <div class="sheet-back" id="sheet" hidden>
   <div class="sheet" role="dialog" aria-modal="true" data-i18n-aria="hist.title">
+    <div class="grabber"></div>
     <div class="sheet-head"><h2 data-i18n="hist.title">Round history</h2><button id="sheetClose" data-i18n="close">Close</button></div>
     <ul class="hist" id="histList"></ul>
   </div>
@@ -883,7 +911,7 @@ body.room-real .rules .fair{margin-top:0;padding-top:0;border-top:0}
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js" integrity="sha384-TcHRA3zBbn+Lexh5n+Oil4guNPOS3rjNDpGRAN46u/s/mB2IZ50ceC6TYDU2yvgK" crossorigin="anonymous"></script>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script src="core.js?v=2026-11-01.1"></script>
+<script src="core.js?v=2026-11-01.2"></script>
 <script>
 'use strict';
 (function(){
@@ -919,6 +947,8 @@ const I18N = {
     'fair.pending': 'appears after bets close', 'fair.prev': 'Previous round', 'fair.prevline': '#{id} · seed {seed} · entropy {ent}',
     'fair.verify': 'Verify round #{id}',
     'chips.aria': 'Bet size', 'chip.all': 'All-in', 'chip.custom': 'Custom',
+    'chip.edit': 'Change the {x} button', 'chip.title': 'Bet {x}',
+    'amt.edit': 'Bet button', 'amt.edit.hint': 'This button will bet the amount you enter. From 0.1 to 10,000,000.', 'amt.max': 'Maximum is 10,000,000',
     'auto': 'Auto', 'auto.aria': 'Auto-bet every round', 'double': 'Double', 'double.aria': 'Double my bet',
     'bet.place': 'Bet', 'bet.add': 'Add', 'bet.busy': 'Placing…', 'bet.connecting': 'Connecting…', 'bet.closed': 'Bets closed',
     'bet.running': 'Round in progress', 'bet.soon': 'Next round soon',
@@ -1039,6 +1069,8 @@ const I18N = {
     'fair.pending': 'появится после закрытия ставок', 'fair.prev': 'Прошлый раунд', 'fair.prevline': '#{id} · сид {seed} · энтропия {ent}',
     'fair.verify': 'Проверить раунд #{id}',
     'chips.aria': 'Размер ставки', 'chip.all': 'Ва-банк', 'chip.custom': 'Своя',
+    'chip.edit': 'Изменить кнопку {x}', 'chip.title': 'Ставка {x}',
+    'amt.edit': 'Кнопка ставки', 'amt.edit.hint': 'Эта кнопка будет ставить введённую сумму. От 0.1 до 10 000 000.', 'amt.max': 'Максимум 10 000 000',
     'auto': 'Авто', 'auto.aria': 'Автоставка каждый раунд', 'double': 'Удвоить', 'double.aria': 'Удвоить мою ставку',
     'bet.place': 'Поставить', 'bet.add': 'Добавить', 'bet.busy': 'Ставим…', 'bet.connecting': 'Подключение…', 'bet.closed': 'Ставки закрыты',
     'bet.running': 'Идёт раунд', 'bet.soon': 'Скоро новый раунд',
@@ -1244,14 +1276,22 @@ function makeTile(base, pattern){
 
 
 /* ---------- state ---------- */
-let chipKey = String(store.get('cutline.chipKey', '1'));
+/* the four bet buttons: the player can change each one (pencil); saved on this device */
+const CHIP_MIN = 0.1, CHIP_MAX = 10000000;
+const okChip = v => typeof v === 'number' && isFinite(v) && v >= CHIP_MIN && v <= CHIP_MAX;
+let chips = (() => {
+  const s = store.get('cutline.chips', null);
+  return Array.isArray(s) && s.length === CHIPS.length && s.every(okChip) ? s.map(r2) : CHIPS.slice();
+})();
+let chipKey = String(store.get('cutline.chipKey', 'c0'));
+{ const old = CHIPS.map(String).indexOf(chipKey); if (old >= 0) chipKey = 'c' + old; }   // saved before buttons were editable
 let customAmt = Number(store.get('cutline.custom', 0)) || 0;
-if (!['1', '5', '10', '50', 'all', 'custom'].includes(chipKey) || (chipKey === 'custom' && !(customAmt >= 0.1))) chipKey = '1';
-/* what the bet button stakes right now: a fixed chip, the whole balance, or the player's own number */
+if (!(/^c[0-3]$/.test(chipKey) || chipKey === 'all' || chipKey === 'custom') || (chipKey === 'custom' && !(customAmt >= 0.1))) chipKey = 'c0';
+/* what the bet button stakes right now: a bet button, the whole balance, or the player's own number */
 function betAmount(){
   if (chipKey === 'all') return Math.floor(Math.max(0, curBal()) * 100 + 1e-6) / 100;
   if (chipKey === 'custom') return customAmt;
-  return Number(chipKey);
+  return chips[Number(chipKey.slice(1))] || chips[0];
 }
 let auto = false;
 let chipTimer = 0;
@@ -1850,10 +1890,28 @@ function showFaucet(amount){
   })();
 }
 
+/* a bet button's label: short enough for a sixth of the bar (10568 → 10.6K, 2500000 → 2.5M); the full amount is in its title */
+function chipLabel(v){
+  if (v >= 999500) return +(v / 1e6).toFixed(v >= 1e7 ? 0 : 2) + 'M';
+  if (v >= 1e5) return Math.round(v / 1e3) + 'K';
+  if (v >= 1e4) return +(v / 1e3).toFixed(1) + 'K';
+  if (v >= 1e3) return +(v / 1e3).toFixed(2) + 'K';
+  return fmt(v);
+}
+const fmtFull = v => r2(v).toLocaleString(lang === 'ru' ? 'ru-RU' : 'en-US', {maximumFractionDigits: 2});
+const PENCIL = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4Z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><path d="m13.5 6.5 4 4" stroke="currentColor" stroke-width="2.2"/></svg>';
+
 function renderChips(){
-  const items = CHIPS.map(v => [String(v), `${fmt(v)} ${GEM}`, '']).concat([['all', esc(t('chip.all')), ' txt'], ['custom', esc(t('chip.custom')), ' txt']]);
+  const cell = (k, inner, cls, extra, title) =>
+    `<div class="chip-cell"><button class="chip${cls}" aria-pressed="${k === chipKey}" data-k="${k}"${title ? ` title="${esc(title)}" aria-label="${esc(title)}"` : ''}>${inner}</button>${extra}</div>`;
   $('#chips').innerHTML = '<span class="lens" id="chipLens" aria-hidden="true"></span>' +
-    items.map(([k, html, cls]) => `<button class="chip${cls}" aria-pressed="${k === chipKey}" data-k="${k}">${html}</button>`).join('');
+    chips.map((v, i) => {
+      const lbl = chipLabel(v), len = lbl.length;
+      return cell('c' + i, `<span class="chip-n">${esc(lbl)}</span>${GEM}`, len >= 6 ? ' xlong' : len >= 5 ? ' long' : len >= 4 ? ' mid' : '',
+        `<button class="chip-edit" data-i="${i}" aria-label="${esc(t('chip.edit', {x: fmtFull(v)}))}">${PENCIL}</button>`,
+        t('chip.title', {x: fmtFull(v)}));
+    }).join('') +
+    cell('all', esc(t('chip.all')), ' txt', '') + cell('custom', esc(t('chip.custom')), ' txt', '');
   placeLens(true);
 }
 /* the glass lens slides (with a little overshoot) to the selected chip */
@@ -1862,13 +1920,14 @@ function placeLens(instant){
   if (!lens || !btn) return;
   if (instant) lens.style.transition = 'none';
   lens.style.width = btn.offsetWidth + 'px';
-  lens.style.transform = `translateX(${btn.offsetLeft}px)`;
+  lens.style.transform = `translateX(${btn.parentElement.offsetLeft + btn.offsetLeft}px)`;
   if (instant){ void lens.offsetWidth; lens.style.transition = ''; }
 }
 window.addEventListener('resize', () => placeLens(true));
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => placeLens(true));
 
 $('#chips').addEventListener('click', e => {
+  const ed = e.target.closest('.chip-edit'); if (ed){ openAmt(Number(ed.dataset.i)); return; }
   const btn = e.target.closest('.chip'); if (!btn) return;
   if (btn.dataset.k === 'custom'){ openAmt(); return; }
   selectChip(btn.dataset.k);
@@ -1878,27 +1937,52 @@ function selectChip(k){
   document.querySelectorAll('.chip').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.k === k)));
   placeLens(false); updateDock();
 }
-/* «Своя»: any amount the player types (comma or dot), at least 0.1 and not more than the balance */
-function openAmt(){
+
+/* one sheet for «Своя» (a one-off amount, not more than the balance) and for changing a bet button (any amount 0.1…10 000 000) */
+let amtEdit = null;                 // index of the bet button being changed, or null for «Своя»
+function openAmt(i){
+  amtEdit = Number.isInteger(i) ? i : null;
   $('#amtSheet').hidden = false;
-  const inp = $('#amtInput'); inp.value = customAmt >= 0.1 ? fmt(customAmt) : '';
+  const inp = $('#amtInput'), v = amtEdit === null ? customAmt : chips[amtEdit];
+  inp.value = v >= 0.1 ? fmt(v) : '';
+  $('#amtTitle').textContent = t(amtEdit === null ? 'amt.title' : 'amt.edit');
   $('#amtHint').classList.remove('is-warn');
-  $('#amtHint').textContent = t('amt.hint', {b: fmt(curBal())});
+  $('#amtHint').textContent = amtEdit === null ? t('amt.hint', {b: fmt(curBal())}) : t('amt.edit.hint');
   setTimeout(() => { inp.focus(); inp.select(); }, 60);
 }
+/* only a number: digits and one dot (a comma becomes a dot), at most 2 decimals and 8 digits before the dot */
+function cleanAmt(s){
+  s = String(s).replace(/,/g, '.').replace(/[^\d.]/g, '');
+  const dot = s.indexOf('.');
+  let a = dot < 0 ? s : s.slice(0, dot), b = dot < 0 ? null : s.slice(dot + 1).replace(/\./g, '').slice(0, 2);
+  a = a.replace(/^0+(?=\d)/, '').slice(0, 8);
+  return b === null ? a : (a || '0') + '.' + b;
+}
 function confirmAmt(){
-  const raw = $('#amtInput').value.replace(/\s/g, '').replace(',', '.');
+  const raw = cleanAmt($('#amtInput').value);
   const v = r2(Number(raw)), hint = $('#amtHint');
   const bad = msg => { hint.textContent = msg; hint.classList.add('is-warn'); };
-  if (!raw || !isFinite(v)) return bad(t('amt.nan'));
-  if (v < 0.1) return bad(t('amt.min'));
+  if (!raw || raw === '.' || !isFinite(v)) return bad(t('amt.nan'));
+  if (v < CHIP_MIN) return bad(t('amt.min'));
+  if (amtEdit !== null){
+    if (v > CHIP_MAX) return bad(t('amt.max'));
+    chips[amtEdit] = v; store.set('cutline.chips', chips);
+    const k = 'c' + amtEdit;
+    $('#amtSheet').hidden = true;
+    renderChips(); selectChip(k);
+    return;
+  }
   if (v > curBal() + 1e-9) return bad(t('amt.nofunds', {b: fmt(curBal())}));
   customAmt = v; store.set('cutline.custom', v);
   $('#amtSheet').hidden = true;
   selectChip('custom');
 }
 $('#amtOk').addEventListener('click', confirmAmt);
-$('#amtInput').addEventListener('input', () => $('#amtHint').classList.remove('is-warn'));
+$('#amtInput').addEventListener('input', e => {
+  const el = e.target, c = cleanAmt(el.value);
+  if (c !== el.value){ el.value = c; try { el.setSelectionRange(c.length, c.length); } catch(_){} }
+  $('#amtHint').classList.remove('is-warn');
+});
 $('#amtInput').addEventListener('keydown', e => { if (e.key === 'Enter') confirmAmt(); });
 $('#amtClose').addEventListener('click', () => { $('#amtSheet').hidden = true; });
 $('#amtSheet').addEventListener('click', e => { if (e.target.id === 'amtSheet') $('#amtSheet').hidden = true; });
@@ -2863,6 +2947,63 @@ document.addEventListener('click', e => {
   if (e.target.classList && e.target.classList.contains('sheet-back')) e.target.hidden = true;
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('.sheet-back').forEach(s => { s.hidden = true; }); });
+/* sheets follow the finger (or the mouse) down and close when pulled far or fast enough.
+   Grab by the handle or the header; anywhere else only when the sheet is scrolled to the top and the pull goes down. */
+(() => {
+  let d = null, swallowUntil = 0, lastTouch = 0;
+  const pt = e => e.touches ? e.touches[0] || e.changedTouches[0] : e;
+  const begin = e => {
+    if (d || (e.button !== undefined && e.button > 0)) return;
+    const s = e.target.closest && e.target.closest('.sheet'); if (!s || s.parentElement.hidden) return;
+    if (e.target.closest('input,textarea,select,a,[contenteditable]')) return;
+    const handle = !!e.target.closest('.grabber,.sheet-head') && !e.target.closest('.sheet-head button');
+    if (!handle && e.target.closest('button')) return;
+    if (!handle && !e.touches) return;                       // with a mouse: only by the handle or the header
+    const p = pt(e);
+    d = {s, back: s.parentElement, handle, y0: p.clientY, y: p.clientY, t: performance.now(), v: 0, on: false, touch: !!e.touches};
+  };
+  const move = e => {
+    if (!d || !!e.touches !== d.touch) return;
+    const p = pt(e), dy = p.clientY - d.y0;
+    if (!d.on){
+      if (!d.handle && (dy < 0 || d.s.scrollTop > 0)){ if (Math.abs(dy) > 6) d = null; return; }   // the content scrolls instead
+      if (e.cancelable && (d.handle || dy > 0)) e.preventDefault();
+      if (Math.abs(dy) < 6) return;
+      d.on = true; d.y0 = p.clientY - Math.sign(dy) * 6;
+      d.s.style.transition = 'none'; d.back.style.transition = 'none';
+    }
+    if (e.cancelable) e.preventDefault();
+    const now = performance.now(), off = p.clientY - d.y0;
+    d.v = .7 * ((p.clientY - d.y) / Math.max(1, now - d.t)) + .3 * d.v; d.y = p.clientY; d.t = now;
+    const y = off >= 0 ? off : -Math.pow(-off, .6);          // only a little give upwards
+    d.s.style.transform = `translateY(${y}px)`;
+    d.back.style.background = `rgba(0,0,0,${(.6 * Math.max(0, 1 - Math.max(0, off) / d.s.offsetHeight)).toFixed(3)})`;
+  };
+  const end = e => {
+    if (!d || !!(e.touches || e.changedTouches) !== d.touch) return;
+    const {s, back, on, v} = d, off = d.y - d.y0; d = null;
+    if (!on) return;
+    swallowUntil = performance.now() + 350;                  // the drag is not a tap on whatever it ended over
+    const close = e.type !== 'touchcancel' && (off > Math.min(140, s.offsetHeight * .3) || (v > .45 && off > 24));
+    const ms = close ? Math.round(Math.max(140, Math.min(280, (s.offsetHeight - off) / Math.max(v, 1.4)))) : 380;
+    s.style.transition = close ? `transform ${ms}ms cubic-bezier(.3,.6,.6,1)` : 'transform .38s cubic-bezier(.2,1.25,.4,1)';
+    back.style.transition = `background ${close ? ms : 300}ms ease`;
+    requestAnimationFrame(() => {
+      s.style.transform = close ? 'translateY(calc(100% + 24px))' : '';
+      back.style.background = close ? 'rgba(0,0,0,0)' : '';
+    });
+    const tidy = () => { s.style.transition = s.style.transform = ''; back.style.transition = back.style.background = ''; };
+    setTimeout(() => { if (close){ back.hidden = true; document.activeElement && document.activeElement.blur && document.activeElement.blur(); } tidy(); }, close ? ms + 20 : 400);
+  };
+  document.addEventListener('touchstart', e => { lastTouch = performance.now(); begin(e); }, {passive: true});
+  document.addEventListener('touchmove', move, {passive: false});
+  const tEnd = e => { lastTouch = performance.now(); end(e); };
+  document.addEventListener('touchend', tEnd); document.addEventListener('touchcancel', tEnd);
+  document.addEventListener('mousedown', e => { if (performance.now() - lastTouch > 800) begin(e); });   // not the mouse copy of a touch
+  document.addEventListener('mousemove', e => { if (d && !d.touch) move(e); });
+  document.addEventListener('mouseup', e => { if (d && !d.touch) end(e); });
+  window.addEventListener('click', e => { if (performance.now() < swallowUntil){ e.stopPropagation(); e.preventDefault(); swallowUntil = 0; } }, true);
+})();
 async function copyText(s){
   try { await navigator.clipboard.writeText(s); return true; }
   catch(e){
@@ -3435,7 +3576,7 @@ document.addEventListener('click', e => {
 const TG_ERRORS = {tg_required: 'tg.required', tg_bad_sign: 'tg.bad_sign', tg_expired: 'tg.expired', tg_no_user: 'tg.no_user', no_bot_token: 'tg.no_token', rate_limited: 'tg.slow'};
 const tgErr = m => TG_ERRORS[m] ? t(TG_ERRORS[m]) : m;
 /* every deploy bumps BUILD here and in version.json; open games notice and reload between rounds */
-const BUILD = '2026-11-01.1';
+const BUILD = '2026-11-01.2';
 let pendingVersion = null;
 async function checkVersion(){
   try {
