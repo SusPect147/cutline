@@ -8,10 +8,9 @@
 //   quest_channel – the signed-in player asks for the "subscribe to the channel" reward: the bot checks the membership
 // The round itself is computed from public data (bets, seed hash) + the secret seed + fresh entropy,
 // using exactly the same core.js the browser uses to replay and verify it.
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "npm:@supabase/supabase-js@2.45.4";
+import { createClient } from "npm:@supabase/supabase-js@2.118.0";
 import "./core.js";
-import { WalletContractV3R2, WalletContractV4, WalletContractV5R1 } from "npm:@ton/ton@16.2.4";
+import { WalletContractV3R2, WalletContractV4, WalletContractV5R1 } from "npm:@ton/ton@16.3.0";
 import { Address, SendMode, beginCell, external, internal, storeMessage } from "npm:@ton/core@0.63.1";
 import { mnemonicToPrivateKey, mnemonicValidate } from "npm:@ton/crypto@3.3.0";
 
@@ -199,7 +198,7 @@ async function status() {
 
 async function advance() {
   const out: Record<string, unknown> = {};
-  for (const room of ["real", "fun"]) out[room] = await advanceRoom(room).catch((e) => ({ ok: false, error: String(e && e.message || e) }));
+  for (const room of ["real"]) out[room] = await advanceRoom(room).catch((e) => ({ ok: false, error: String(e && e.message || e) }));
   return out;
 }
 
@@ -207,20 +206,30 @@ async function advanceRoom(room: string) {
   const { data: r, error } = await db.from("rounds").select("id,status,seed_hash,bets_close_at")
     .eq("status", "betting").eq("room", room).order("id", { ascending: false }).limit(1).maybeSingle();
   if (error) throw error;
-  if (!r || !r.bets_close_at || Date.parse(r.bets_close_at) > Date.now() + 750) return { ok: false, reason: "not_due" };
+  if (!r || !r.bets_close_at) return { ok: false, reason: "not_due" };
+  // the result is computed only after betting has closed, from all the bets; a call that comes a moment early waits
+  const wait = Date.parse(r.bets_close_at) - Date.now();
+  if (wait > 1500) return { ok: false, reason: "not_due" };
+  if (wait > -300) await sleep(wait + 300);
   const { data: sec, error: e1 } = await db.rpc("get_round_secret", { p_round: r.id });
   if (e1) throw e1;
-  const { data: bets, error: e2 } = await db.from("bets").select("id,user_id,amount").eq("round_id", r.id).order("id");
-  if (e2) throw e2;
-  if (!bets || new Set(bets.map((b) => b.user_id)).size < 2) return { ok: false, reason: "not_enough_players" };
-  const entropy = hex(12); // created only now, after bets are closed
-  const out = C.computeRound(bets, r.seed_hash, sec.seed, entropy, sec.forced_mod);
-  const { data: st, error: e3 } = await db.rpc("settle_round", {
-    p_round: r.id, p_entropy: entropy, p_mod: out.mod, p_mod_forced: out.modForced, p_winner: out.winner,
-    p_cuts: out.cuts, p_result: out.result, p_anim_ms: out.anim,
-  });
-  if (e3) throw e3;
-  return st;
+  // the database refuses the result if the bets it was computed from are not exactly the bets of the round
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const { data: bets, error: e2 } = await db.from("bets").select("id,user_id,amount").eq("round_id", r.id).order("id");
+    if (e2) throw e2;
+    if (!bets || new Set(bets.map((b) => b.user_id)).size < 2) return { ok: false, reason: "not_enough_players" };
+    const cents = bets.reduce((t, b) => t + Math.round(Number(b.amount) * 100), 0);
+    const entropy = hex(12); // created only now, after bets are closed
+    const out = C.computeRound(bets, r.seed_hash, sec.seed, entropy, sec.forced_mod);
+    const { data: st, error: e3 } = await db.rpc("settle_round2", {
+      p_round: r.id, p_entropy: entropy, p_mod: out.mod, p_mod_forced: out.modForced, p_winner: out.winner,
+      p_cuts: out.cuts, p_result: out.result, p_anim_ms: out.anim, p_bet_count: bets.length, p_pot: (cents / 100).toFixed(2),
+    });
+    if (e3) throw e3;
+    if (!(st && st.reason === "stale_bets")) return st;
+    await sleep(300);
+  }
+  return { ok: false, reason: "stale_bets" };
 }
 
 /* ---------- deposits: Gram sent to the house wallet with the player's code as the comment ---------- */
