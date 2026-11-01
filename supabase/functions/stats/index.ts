@@ -16,13 +16,13 @@ const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { sta
 const sha256 = async (t: string) =>
   Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t))), (x) => x.toString(16).padStart(2, "0")).join("");
 
-async function walletNano(address: string) {
+async function walletNano(address: string): Promise<string | null> {
   try {
     const key = (Deno.env.get("TONCENTER_API_KEY") || "").trim();
     const r = await fetch(`https://toncenter.com/api/v2/getAddressBalance?address=${encodeURIComponent(address)}`,
       { headers: key ? { "X-API-Key": key } : {}, signal: AbortSignal.timeout(8000) });
     const j = await r.json();
-    return j.ok ? Number(BigInt(j.result)) / 1e9 : null;
+    return j.ok ? BigInt(j.result).toString() : null;
   } catch { return null; }
 }
 
@@ -42,10 +42,13 @@ Deno.serve(async (req) => {
     if (error) throw error;
     const { data: cfg } = await db.from("app_config").select("value").eq("key", "wallet").single();
     const w = (cfg && cfg.value) || {};
-    const bal = w.address ? await walletNano(String(w.address)) : null;
-    const reserve = Number(w.owner_reserve ?? 1);
-    return json({ ...s, wallet: { balance: bal, reserve,
-      available_profit: bal === null ? null : Math.max(0, Math.floor((bal - Number(s.obligations) - reserve) * 100) / 100) } });
+    const nano = w.address ? await walletNano(String(w.address)) : null;
+    // the owner's share: the smaller of the free money in the wallet and the profit not yet taken (counted by the database)
+    const { data: av, error: e2 } = await db.rpc("owner_available", { p_chain_nano: nano });
+    if (e2) throw e2;
+    const n = (v: unknown) => (v === null || v === undefined ? null : Number(v));
+    return json({ ...s, wallet: { balance: n(av.chain), reserve: Number(av.reserve), free: n(av.free), earned: Number(av.earned),
+      available_profit: n(av.available) } });
   } catch (e) {
     console.error(e);
     return json({ error: "server_error" }, 500);
